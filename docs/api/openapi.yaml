@@ -1,0 +1,652 @@
+
+openapi: 3.1.0
+
+info:
+  title: MS05 - Brigadistas e Incidentes
+  description: |
+    API REST para la gestión de brigadistas, asignaciones y
+    configuraciones de distribución de brigadistas de CampusSeguro.
+
+    MS05 administra la disponibilidad de los brigadistas,
+    genera propuestas de asignación para los eventos enviados
+    por MS06 y valida y persiste las asignaciones definitivas.
+
+    MS06 es responsable de la gestión de eventos y de permitir
+    al organizador revisar y modificar la propuesta de asignaciones.
+
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8085
+    description: Servidor local de desarrollo
+
+tags:
+  - name: Brigadistas
+    description: Gestión y consulta de brigadistas.
+
+  - name: Asignaciones
+    description: Generación, consulta, modificación y retiro de asignaciones.
+
+paths:
+
+  /api/v1/brigadistas:
+    post:
+      tags:
+        - Brigadistas
+      summary: Registrar un brigadista
+      operationId: registrarBrigadista
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrigadistaRequest'
+      responses:
+        '201':
+          description: Brigadista registrado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brigadista'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Brigadistas
+      summary: Listar todos los brigadistas
+      operationId: listarBrigadistas
+      responses:
+        '200':
+          description: Lista de brigadistas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Brigadista'
+
+  /api/v1/brigadistas/{id}:
+    get:
+      tags:
+        - Brigadistas
+      summary: Consultar un brigadista por ID
+      operationId: buscarBrigadistaPorId
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador único del brigadista.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Brigadista encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brigadista'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/asignaciones-brigadistas:
+    post:
+      tags:
+        - Asignaciones
+      summary: Registrar una asignación individual
+      operationId: registrarAsignacion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsignacionRequest'
+      responses:
+        '200':
+          description: Asignación registrada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asignacion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/asignaciones-brigadistas/brigadistas/disponibles:
+    get:
+      tags:
+        - Asignaciones
+      summary: Consultar brigadistas disponibles
+      description: |
+        Devuelve los brigadistas cuyo estado operativo es ACTIVO
+        y que no tienen ninguna asignación en estado VIGENTE.
+      operationId: listarBrigadistasDisponibles
+      responses:
+        '200':
+          description: Lista de brigadistas disponibles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Brigadista'
+
+  /api/v1/asignaciones-brigadistas/evento/{eventoId}/propuesta:
+    post:
+      tags:
+        - Asignaciones
+      summary: Generar propuesta de asignaciones predeterminadas
+      description: |
+        Recibe el evento y sus ubicaciones para generar una propuesta
+        automática de distribución de brigadistas.
+
+        La propuesta se almacena temporalmente en MS05 y no genera
+        asignaciones definitivas en la base de datos.
+
+        Se excluyen los brigadistas que ya tienen asignaciones vigentes.
+      operationId: generarPropuestaAsignaciones
+      parameters:
+        - name: eventoId
+          in: path
+          required: true
+          description: Identificador del evento.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AsignacionPredeterminadaRequest'
+      responses:
+        '200':
+          description: Propuesta generada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsignacionPredeterminadaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/asignaciones-brigadistas/evento/{eventoId}/confirmar:
+    post:
+      tags:
+        - Asignaciones
+      summary: Confirmar asignaciones definitivas
+      description: |
+        Recibe la distribución definitiva enviada por MS06,
+        valida los brigadistas y las ubicaciones y persiste
+        las asignaciones en MS05.
+
+        El tipo de asignación se determina automáticamente:
+        DEFAULT si coincide con la propuesta y MANUAL si fue modificada.
+      operationId: confirmarAsignaciones
+      parameters:
+        - name: eventoId
+          in: path
+          required: true
+          description: Identificador del evento.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmarAsignacionesRequest'
+      responses:
+        '200':
+          description: Asignaciones confirmadas correctamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asignacion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/asignaciones-brigadistas/evento/{eventoId}:
+    get:
+      tags:
+        - Asignaciones
+      summary: Consultar asignaciones de un evento
+      operationId: listarAsignacionesPorEvento
+      parameters:
+        - name: eventoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de asignaciones del evento.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asignacion'
+
+  /api/v1/asignaciones-brigadistas/brigadista/{brigadistaId}:
+    get:
+      tags:
+        - Asignaciones
+      summary: Consultar asignaciones de un brigadista
+      operationId: listarAsignacionesPorBrigadista
+      parameters:
+        - name: brigadistaId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de asignaciones del brigadista.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asignacion'
+
+  /api/v1/asignaciones-brigadistas/estado/{estado}:
+    get:
+      tags:
+        - Asignaciones
+      summary: Consultar asignaciones por estado
+      operationId: listarAsignacionesPorEstado
+      parameters:
+        - name: estado
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/EstadoAsignacion'
+      responses:
+        '200':
+          description: Lista de asignaciones con el estado indicado.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Asignacion'
+
+  /api/v1/asignaciones-brigadistas/{asignacionId}/retirar:
+    patch:
+      tags:
+        - Asignaciones
+      summary: Retirar una asignación
+      operationId: retirarAsignacion
+      parameters:
+        - name: asignacionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Asignación retirada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asignacion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/asignaciones-brigadistas/{asignacionId}:
+    put:
+      tags:
+        - Asignaciones
+      summary: Modificar una asignación
+      description: |
+        Modifica la ubicación y las observaciones de una asignación vigente.
+        Los cambios de ubicación generan un registro en el historial.
+      operationId: modificarAsignacion
+      parameters:
+        - name: asignacionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModificarAsignacionRequest'
+      responses:
+        '200':
+          description: Asignación modificada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asignacion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/asignaciones-brigadistas/{asignacionId}/historial:
+    get:
+      tags:
+        - Asignaciones
+      summary: Consultar historial de una asignación
+      operationId: consultarHistorialAsignacion
+      parameters:
+        - name: asignacionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Historial de modificaciones de la asignación.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistorialAsignacion'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+
+  schemas:
+
+    BrigadistaRequest:
+      type: object
+      required:
+        - usuarioId
+      properties:
+        usuarioId:
+          type: string
+          format: uuid
+        estadoOperativo:
+          $ref: '#/components/schemas/EstadoOperativo'
+        observaciones:
+          type: string
+
+    Brigadista:
+      type: object
+      properties:
+        idBrigadista:
+          type: string
+          format: uuid
+        usuarioId:
+          type: string
+          format: uuid
+        estadoOperativo:
+          $ref: '#/components/schemas/EstadoOperativo'
+        observaciones:
+          type: string
+        fechaCreacion:
+          type: string
+          format: date-time
+        fechaActualizacion:
+          type: string
+          format: date-time
+
+    EstadoOperativo:
+      type: string
+      enum:
+        - ACTIVO
+        - RETIRADO
+
+    EstadoAsignacion:
+      type: string
+      enum:
+        - VIGENTE
+        - RETIRADA
+
+    TipoUbicacion:
+      type: string
+      enum:
+        - EDIFICIO
+        - ESPACIO
+        - ZONA_SEGURA
+
+    TipoAsignacion:
+      type: string
+      enum:
+        - DEFAULT
+        - MANUAL
+
+    AsignacionPredeterminadaRequest:
+      type: object
+      required:
+        - eventoId
+        - ubicaciones
+      properties:
+        eventoId:
+          type: string
+          format: uuid
+        ubicaciones:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/UbicacionSeleccionada'
+
+    UbicacionSeleccionada:
+      type: object
+      required:
+        - ubicacionId
+        - tipoUbicacion
+      properties:
+        ubicacionId:
+          type: string
+          format: uuid
+        tipoUbicacion:
+          $ref: '#/components/schemas/TipoUbicacion'
+
+    AsignacionPredeterminadaResponse:
+      type: object
+      properties:
+        asignaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/AsignacionPropuesta'
+        brigadistasSinAsignar:
+          type: array
+          items:
+            type: string
+            format: uuid
+        totalDisponibles:
+          type: integer
+        totalRequeridos:
+          type: integer
+        distribucionAjustada:
+          type: boolean
+
+    AsignacionPropuesta:
+      type: object
+      properties:
+        brigadistaId:
+          type: string
+          format: uuid
+        eventoId:
+          type: string
+          format: uuid
+        ubicacionId:
+          type: string
+          format: uuid
+        tipoUbicacion:
+          $ref: '#/components/schemas/TipoUbicacion'
+        tipoAsignacion:
+          $ref: '#/components/schemas/TipoAsignacion'
+
+    ConfirmarAsignacionesRequest:
+      type: object
+      required:
+        - asignaciones
+      properties:
+        asignaciones:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AsignacionConfirmada'
+
+    AsignacionConfirmada:
+      type: object
+      required:
+        - brigadistaId
+        - ubicacionId
+        - tipoUbicacion
+      properties:
+        brigadistaId:
+          type: string
+          format: uuid
+        ubicacionId:
+          type: string
+          format: uuid
+        tipoUbicacion:
+          $ref: '#/components/schemas/TipoUbicacion'
+        observaciones:
+          type: string
+
+    AsignacionRequest:
+      type: object
+      properties:
+        brigadista:
+          $ref: '#/components/schemas/Brigadista'
+        eventoId:
+          type: string
+          format: uuid
+        ubicacionId:
+          type: string
+          format: uuid
+        tipoUbicacion:
+          $ref: '#/components/schemas/TipoUbicacion'
+        tipoAsignacion:
+          $ref: '#/components/schemas/TipoAsignacion'
+        estado:
+          $ref: '#/components/schemas/EstadoAsignacion'
+        observaciones:
+          type: string
+
+    Asignacion:
+      type: object
+      properties:
+        idAsignacion:
+          type: string
+          format: uuid
+        brigadista:
+          $ref: '#/components/schemas/Brigadista'
+        eventoId:
+          type: string
+          format: uuid
+        ubicacionId:
+          type: string
+          format: uuid
+        tipoUbicacion:
+          $ref: '#/components/schemas/TipoUbicacion'
+        tipoAsignacion:
+          $ref: '#/components/schemas/TipoAsignacion'
+        estado:
+          $ref: '#/components/schemas/EstadoAsignacion'
+        observaciones:
+          type: string
+
+    ModificarAsignacionRequest:
+      type: object
+      required:
+        - nuevaUbicacionId
+        - nuevoTipoUbicacion
+      properties:
+        nuevaUbicacionId:
+          type: string
+          format: uuid
+        nuevoTipoUbicacion:
+          $ref: '#/components/schemas/TipoUbicacion'
+        observaciones:
+          type: string
+
+    HistorialAsignacion:
+      type: object
+      properties:
+        idHistorial:
+          type: string
+          format: uuid
+        asignacionId:
+          type: string
+          format: uuid
+        ubicacionAnteriorId:
+          type: string
+          format: uuid
+        tipoUbicacionAnterior:
+          $ref: '#/components/schemas/TipoUbicacion'
+        ubicacionNuevaId:
+          type: string
+          format: uuid
+        tipoUbicacionNueva:
+          $ref: '#/components/schemas/TipoUbicacion'
+        fechaCambio:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+
+  responses:
+
+    BadRequest:
+      description: Solicitud inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Conflict:
+      description: Conflicto con el estado actual del recurso.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

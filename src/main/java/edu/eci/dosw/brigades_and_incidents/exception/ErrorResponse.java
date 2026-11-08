@@ -4,9 +4,9 @@ package edu.eci.dosw.brigades_and_incidents.exception;
 import java.time.LocalDateTime;
 
 public record ErrorResponse(
-        LocalDateTime timestamp,
-        int status,
+        LocalDateTime fecha,
+        int codigo,
         String error,
-        String message
+        String mensaje
 ) {
 }

@@ -1,92 +1,60 @@
-
 package edu.eci.dosw.brigades_and_incidents.entity;
 
-import edu.eci.dosw.brigades_and_incidents.enums.EstadoOperativo;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "brigadistas")
+@Table(
+        name = "brigadista",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_brigadista_usuario_externo",
+                        columnNames = "usuario_id_externo"
+                )
+        }
+)
 public class Brigadista {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id_brigadista")
-    private UUID idBrigadista;
+    private UUID id;
 
-    @Column(name = "usuario_id", nullable = false, unique = true)
-    private UUID usuarioId;
+    @Column(name = "usuario_id_externo", nullable = false, unique = true)
+    private String usuarioIdExterno;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "estado_operativo", nullable = false, length = 20)
-    private EstadoOperativo estadoOperativo = EstadoOperativo.ACTIVO;
-
-    @Column(name = "observaciones")
-    private String observaciones;
-
-    @Column(name = "fecha_creacion", nullable = false, updatable = false)
-    private LocalDateTime fechaCreacion;
-
-    @Column(name = "fecha_actualizacion")
-    private LocalDateTime fechaActualizacion;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "estado_id", nullable = false)
+    private EstadoBrigadista estado;
 
     public Brigadista() {
     }
 
-    public UUID getIdBrigadista() {
-        return idBrigadista;
+    public Brigadista(
+            String usuarioIdExterno,
+            EstadoBrigadista estado
+    ) {
+        this.usuarioIdExterno = usuarioIdExterno;
+        this.estado = estado;
     }
 
-    public void setIdBrigadista(UUID idBrigadista) {
-        this.idBrigadista = idBrigadista;
+    public UUID getId() {
+        return id;
     }
 
-    public UUID getUsuarioId() {
-        return usuarioId;
+    public String getUsuarioIdExterno() {
+        return usuarioIdExterno;
     }
 
-    public void setUsuarioId(UUID usuarioId) {
-        this.usuarioId = usuarioId;
+    public void setUsuarioIdExterno(String usuarioIdExterno) {
+        this.usuarioIdExterno = usuarioIdExterno;
     }
 
-    public EstadoOperativo getEstadoOperativo() {
-        return estadoOperativo;
+    public EstadoBrigadista getEstado() {
+        return estado;
     }
 
-    public void setEstadoOperativo(EstadoOperativo estadoOperativo) {
-        this.estadoOperativo = estadoOperativo;
-    }
-
-    public String getObservaciones() {
-        return observaciones;
-    }
-
-    public void setObservaciones(String observaciones) {
-        this.observaciones = observaciones;
-    }
-
-    public LocalDateTime getFechaCreacion() {
-        return fechaCreacion;
-    }
-
-    public void setFechaCreacion(LocalDateTime fechaCreacion) {
-        this.fechaCreacion = fechaCreacion;
-    }
-
-    public LocalDateTime getFechaActualizacion() {
-        return fechaActualizacion;
-    }
-
-    public void setFechaActualizacion(LocalDateTime fechaActualizacion) {
-        this.fechaActualizacion = fechaActualizacion;
+    public void setEstado(EstadoBrigadista estado) {
+        this.estado = estado;
     }
 }

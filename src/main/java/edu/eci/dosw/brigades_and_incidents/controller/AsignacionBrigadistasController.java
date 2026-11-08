@@ -1,135 +1,166 @@
 
 package edu.eci.dosw.brigades_and_incidents.controller;
 
-import edu.eci.dosw.brigades_and_incidents.dto.AsignacionPredeterminadaRequest;
-import edu.eci.dosw.brigades_and_incidents.dto.AsignacionPredeterminadaResponse;
-import edu.eci.dosw.brigades_and_incidents.dto.ConfirmarAsignacionesRequest;
-import edu.eci.dosw.brigades_and_incidents.dto.HistorialAsignacionDTO;
+import edu.eci.dosw.brigades_and_incidents.dto.AsignacionPorDefectoRequest;
+import edu.eci.dosw.brigades_and_incidents.dto.AsignacionResponse;
+import edu.eci.dosw.brigades_and_incidents.dto.CrearAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.ModificarAsignacionRequest;
-
-import edu.eci.dosw.brigades_and_incidents.entity.AsignacionBrigadistas;
-import edu.eci.dosw.brigades_and_incidents.entity.Brigadista;
-
-import edu.eci.dosw.brigades_and_incidents.enums.EstadoAsignacion;
-
 import edu.eci.dosw.brigades_and_incidents.service.AsignacionBrigadistasService;
 
+import jakarta.validation.Valid;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/asignaciones-brigadistas")
+@RequestMapping("/api/v1/asignaciones")
 public class AsignacionBrigadistasController {
 
-    private final AsignacionBrigadistasService asignacionBrigadistasService;
+    private final AsignacionBrigadistasService service;
 
     public AsignacionBrigadistasController(
-            AsignacionBrigadistasService asignacionBrigadistasService) {
-        this.asignacionBrigadistasService = asignacionBrigadistasService;
+            AsignacionBrigadistasService service) {
+        this.service = service;
     }
 
-    // Registrar una asignación individual.
+    // Coordinador u organizador crea una asignación.
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public AsignacionBrigadistas registrar(
-            @RequestBody AsignacionBrigadistas asignacion) {
+    public ResponseEntity<AsignacionResponse> crearAsignacion(
+            @Valid @RequestBody CrearAsignacionRequest request,
+            @RequestHeader("X-User-Id") String actorId,
+            @RequestHeader("X-User-Role") String rol) {
 
-        return asignacionBrigadistasService.registrar(asignacion);
+        validarRolCoordinador(rol);
+
+        AsignacionResponse respuesta =
+                service.crearAsignacion(request, actorId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
     }
 
-    // Consultar brigadistas activos sin asignaciones vigentes.
-    @GetMapping("/brigadistas/disponibles")
-    public List<Brigadista> listarBrigadistasActivos() {
+    // El brigadista solicita asignarse a una ubicación.
+    // El ID del brigadista se obtiene del usuario autenticado,
+    // no del cuerpo de la solicitud.
+    @PostMapping("/mis-asignaciones")
+    public ResponseEntity<AsignacionResponse> autoasignarse(
+            @Valid @RequestBody CrearAsignacionRequest request,
+            @RequestHeader("X-User-Id") String brigadistaId,
+            @RequestHeader("X-User-Role") String rol) {
 
-        return asignacionBrigadistasService.listarBrigadistasActivos();
-    }
-
-    // MS06 envía el evento y las ubicaciones para generar la propuesta.
-    @PostMapping("/evento/{eventoId}/propuesta")
-    public AsignacionPredeterminadaResponse prepararAsignacionesPredeterminadas(
-            @PathVariable UUID eventoId,
-            @RequestBody AsignacionPredeterminadaRequest solicitud) {
-
-        if (solicitud == null
-                || solicitud.getEventoId() == null
-                || !eventoId.equals(solicitud.getEventoId())) {
-            throw new IllegalArgumentException(
-                    "El ID del evento no coincide con la solicitud");
+        if (!"BRIGADISTA".equalsIgnoreCase(rol)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Esta operación está disponible únicamente para brigadistas."
+            );
         }
 
-        return asignacionBrigadistasService
-                .prepararPropuestaConResumen(solicitud);
+        CrearAsignacionRequest solicitud = new CrearAsignacionRequest(
+                brigadistaId,
+                request.eventoId(),
+                request.ubicacionId(),
+                request.tipoUbicacion(),
+                request.observaciones()
+        );
+
+        AsignacionResponse respuesta =
+                service.crearAsignacion(solicitud, brigadistaId);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(respuesta);
     }
 
-    // MS06 envía la distribución definitiva después de que el organizador la confirma.
-    @PostMapping("/evento/{eventoId}/confirmar")
-    @ResponseStatus(HttpStatus.CREATED)
-    public List<AsignacionBrigadistas> confirmarAsignaciones(
-            @PathVariable UUID eventoId,
-            @RequestBody ConfirmarAsignacionesRequest solicitud) {
+    // Coordinador u organizador modifica una asignación.
+    @PutMapping("/{idAsignacion}")
+    public ResponseEntity<AsignacionResponse> modificarAsignacion(
+            @PathVariable UUID idAsignacion,
+            @Valid @RequestBody ModificarAsignacionRequest request,
+            @RequestHeader("X-User-Id") String actorId,
+            @RequestHeader("X-User-Role") String rol) {
 
-        return asignacionBrigadistasService
-                .confirmarAsignaciones(eventoId, solicitud);
+        validarRolCoordinador(rol);
+
+        return ResponseEntity.ok(
+                service.modificarAsignacion(idAsignacion, request, actorId)
+        );
+    }
+
+    // Coordinador u organizador retira una asignación.
+    @PatchMapping("/{idAsignacion}/retiro")
+    public ResponseEntity<AsignacionResponse> retirarAsignacion(
+            @PathVariable UUID idAsignacion,
+            @RequestHeader("X-User-Id") String actorId,
+            @RequestHeader("X-User-Role") String rol) {
+
+        validarRolCoordinador(rol);
+
+        return ResponseEntity.ok(
+                service.retirarAsignacion(idAsignacion, actorId)
+        );
+    }
+
+    // MS06 solicita asignaciones predeterminadas al iniciar un evento.
+    @PostMapping("/predeterminadas")
+    public ResponseEntity<List<AsignacionResponse>> crearPorDefecto(
+            @Valid @RequestBody List<@Valid AsignacionPorDefectoRequest> solicitudes,
+            @RequestHeader("X-User-Id") String actorId,
+            @RequestHeader("X-User-Role") String rol) {
+
+        if (!"SERVICE_MS06".equalsIgnoreCase(rol)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Esta operación está reservada para el servicio autorizado de MS06."
+            );
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                service.crearAsignacionesPorDefecto(solicitudes, actorId)
+        );
+    }
+
+    // Consultar una asignación específica.
+    @GetMapping("/{idAsignacion}")
+    public ResponseEntity<AsignacionResponse> consultarAsignacion(
+            @PathVariable UUID idAsignacion) {
+
+        return ResponseEntity.ok(
+                service.consultarAsignacion(idAsignacion)
+        );
     }
 
     // Consultar las asignaciones de un evento.
     @GetMapping("/evento/{eventoId}")
-    public List<AsignacionBrigadistas> listarPorEvento(
-            @PathVariable UUID eventoId) {
+    public ResponseEntity<List<AsignacionResponse>> consultarPorEvento(
+            @PathVariable String eventoId) {
 
-        return asignacionBrigadistasService.listarPorEvento(eventoId);
+        return ResponseEntity.ok(
+                service.consultarPorEvento(eventoId)
+        );
     }
 
     // Consultar las asignaciones de un brigadista.
     @GetMapping("/brigadista/{brigadistaId}")
-    public List<AsignacionBrigadistas> listarPorBrigadista(
-            @PathVariable UUID brigadistaId) {
+    public ResponseEntity<List<AsignacionResponse>> consultarPorBrigadista(
+            @PathVariable String brigadistaId) {
 
-        return asignacionBrigadistasService.listarPorBrigadista(brigadistaId);
-    }
-
-    // Consultar el historial de cambios de ubicación de una asignación.
-    @GetMapping("/{asignacionId}/historial")
-    public List<HistorialAsignacionDTO> consultarHistorial(
-            @PathVariable UUID asignacionId) {
-
-        return asignacionBrigadistasService.consultarHistorial(asignacionId);
-    }
-
-    // Retirar una asignación.
-    @PatchMapping("/{id}/retirar")
-    public AsignacionBrigadistas retirar(@PathVariable UUID id) {
-
-        return asignacionBrigadistasService.retirar(id);
-    }
-
-    // Modificar la ubicación de una asignación.
-    @PutMapping("/{id}")
-    public AsignacionBrigadistas modificar(
-            @PathVariable UUID id,
-            @RequestBody ModificarAsignacionRequest solicitud) {
-
-        if (solicitud == null) {
-            throw new IllegalArgumentException(
-                    "La información para modificar la asignación es obligatoria");
-        }
-
-        return asignacionBrigadistasService.modificar(
-                id,
-                solicitud.getNuevaUbicacionId(),
-                solicitud.getNuevoTipoUbicacion(),
-                solicitud.getNuevasObservaciones()
+        return ResponseEntity.ok(
+                service.consultarPorBrigadista(brigadistaId)
         );
     }
 
-    // Consultar asignaciones por estado.
-    @GetMapping("/estado/{estado}")
-    public List<AsignacionBrigadistas> listarPorEstado(
-            @PathVariable EstadoAsignacion estado) {
+    private void validarRolCoordinador(String rol) {
 
-        return asignacionBrigadistasService.listarPorEstado(estado);
+        boolean autorizado =
+                "COORDINATOR".equalsIgnoreCase(rol)
+                || "ORGANIZER".equalsIgnoreCase(rol);
+
+        if (!autorizado) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Solo un coordinador u organizador puede realizar esta operación."
+            );
+        }
     }
 }

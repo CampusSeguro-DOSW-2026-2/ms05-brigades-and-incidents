@@ -1,41 +1,18 @@
 
 package edu.eci.dosw.brigades_and_incidents.dto;
 
-import edu.eci.dosw.brigades_and_incidents.enums.TipoUbicacion;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
-import java.util.UUID;
+public record ModificarAsignacionRequest(
 
-public class ModificarAsignacionRequest {
+        @NotBlank(message = "La ubicación es obligatoria")
+        String ubicacionId,
 
-    private UUID nuevaUbicacionId;
-    private TipoUbicacion nuevoTipoUbicacion;
-    private String nuevasObservaciones;
+        @NotBlank(message = "El tipo de ubicación es obligatorio")
+        String tipoUbicacion,
 
-    public ModificarAsignacionRequest() {
-    }
-
-    public UUID getNuevaUbicacionId() {
-        return nuevaUbicacionId;
-    }
-
-    public void setNuevaUbicacionId(UUID nuevaUbicacionId) {
-        this.nuevaUbicacionId = nuevaUbicacionId;
-    }
-
-    public TipoUbicacion getNuevoTipoUbicacion() {
-        return nuevoTipoUbicacion;
-    }
-
-    public void setNuevoTipoUbicacion(
-            TipoUbicacion nuevoTipoUbicacion) {
-        this.nuevoTipoUbicacion = nuevoTipoUbicacion;
-    }
-
-    public String getNuevasObservaciones() {
-        return nuevasObservaciones;
-    }
-
-    public void setNuevasObservaciones(String nuevasObservaciones) {
-        this.nuevasObservaciones = nuevasObservaciones;
-    }
+        @Size(max = 5000, message = "Las observaciones son demasiado largas")
+        String observaciones
+) {
 }

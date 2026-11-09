@@ -20,21 +20,26 @@ public class AsignacionBrigadistasService {
 
     private static final String VIGENTE = "VIGENTE";
     private static final String RETIRADA = "RETIRADA";
+    private static final String RESUELTO = "RESUELTO";
+    private static final String CERRADO = "CERRADO";
 
     private final AsignacionBrigadistaRepository asignacionRepository;
     private final EstadoAsignacionRepository estadoRepository;
     private final TipoUbicacionRepository tipoRepository;
+    private final IncidenteRepository incidenteRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public AsignacionBrigadistasService(
             AsignacionBrigadistaRepository asignacionRepository,
             EstadoAsignacionRepository estadoRepository,
             TipoUbicacionRepository tipoRepository,
+            IncidenteRepository incidenteRepository,
             ApplicationEventPublisher eventPublisher) {
 
         this.asignacionRepository = asignacionRepository;
         this.estadoRepository = estadoRepository;
         this.tipoRepository = tipoRepository;
+        this.incidenteRepository = incidenteRepository;
         this.eventPublisher = eventPublisher;
     }
 
@@ -44,8 +49,12 @@ public class AsignacionBrigadistasService {
             String actorId) {
 
         validarIdentificadorActor(actorId);
-        validarDatos(request.brigadistaId(), request.eventoId(),
-                request.ubicacionId(), request.tipoUbicacion());
+        validarDatos(
+                request.brigadistaId(),
+                request.eventoId(),
+                request.ubicacionId(),
+                request.tipoUbicacion()
+        );
 
         TipoUbicacion tipo = buscarTipo(request.tipoUbicacion());
 
@@ -82,7 +91,8 @@ public class AsignacionBrigadistasService {
 
         validarIdentificadorActor(actorId);
 
-        AsignacionBrigadista asignacion = buscarAsignacion(idAsignacion);
+        AsignacionBrigadista asignacion =
+                buscarAsignacion(idAsignacion);
 
         validarVigencia(asignacion);
 
@@ -94,6 +104,15 @@ public class AsignacionBrigadistasService {
         );
 
         TipoUbicacion tipo = buscarTipo(request.tipoUbicacion());
+
+        boolean cambiaUbicacion =
+                !asignacion.getUbicacionId().equals(request.ubicacionId())
+                || !asignacion.getTipoUbicacion().getNombre()
+                        .equalsIgnoreCase(request.tipoUbicacion());
+
+        if (cambiaUbicacion) {
+            validarNoDejarZonaSinBrigadista(asignacion);
+        }
 
         boolean duplicada = asignacionRepository
                 .existsByBrigadistaIdAndEventoIdAndUbicacionIdAndTipoUbicacion_NombreAndEstado_NombreAndIdAsignacionNot(
@@ -130,9 +149,12 @@ public class AsignacionBrigadistasService {
 
         validarIdentificadorActor(actorId);
 
-        AsignacionBrigadista asignacion = buscarAsignacion(idAsignacion);
+        AsignacionBrigadista asignacion =
+                buscarAsignacion(idAsignacion);
 
         validarVigencia(asignacion);
+
+        validarNoDejarZonaSinBrigadista(asignacion);
 
         asignacion.setEstado(buscarEstado(RETIRADA));
 
@@ -206,6 +228,59 @@ public class AsignacionBrigadistasService {
                 .stream()
                 .map(this::convertirRespuesta)
                 .toList();
+    }
+
+    /**
+     * Impide retirar o cambiar de ubicación a un brigadista
+     * cuando existen incidentes pendientes y es el único
+     * brigadista vigente asignado a esa ubicación del evento.
+     */
+    private void validarNoDejarZonaSinBrigadista(
+            AsignacionBrigadista asignacion) {
+
+        List<Incidente> incidentesPendientes =
+                incidenteRepository.findByEventoIdAndUbicacionId(
+                        asignacion.getEventoId(),
+                        asignacion.getUbicacionId()
+                ).stream()
+                        .filter(incidente -> {
+                            String estado =
+                                    incidente.getEstado().getNombre();
+
+                            return !RESUELTO.equals(estado)
+                                    && !CERRADO.equals(estado);
+                        })
+                        .toList();
+
+        if (incidentesPendientes.isEmpty()) {
+            return;
+        }
+
+        boolean existeOtroBrigadista =
+                asignacionRepository
+                        .findByEventoIdAndEstado_Nombre(
+                                asignacion.getEventoId(),
+                                VIGENTE
+                        )
+                        .stream()
+                        .anyMatch(otra ->
+                                !otra.getIdAsignacion().equals(
+                                        asignacion.getIdAsignacion())
+                                && otra.getUbicacionId().equals(
+                                        asignacion.getUbicacionId())
+                                && otra.getTipoUbicacion().getNombre()
+                                        .equals(
+                                                asignacion.getTipoUbicacion()
+                                                        .getNombre())
+                        );
+
+        if (!existeOtroBrigadista) {
+            throw new ConflictoOperacionException(
+                    "No se puede retirar o modificar esta asignación "
+                    + "porque existen incidentes sin resolver y el "
+                    + "brigadista es el único asignado a esta ubicación."
+            );
+        }
     }
 
     private void validarDatos(

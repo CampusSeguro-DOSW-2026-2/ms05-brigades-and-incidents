@@ -5,11 +5,14 @@ import edu.eci.dosw.brigades_and_incidents.dto.CrearAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.ModificarAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.AsignacionBrigadista;
 import edu.eci.dosw.brigades_and_incidents.entity.EstadoAsignacion;
+import edu.eci.dosw.brigades_and_incidents.entity.EstadoIncidente;
+import edu.eci.dosw.brigades_and_incidents.entity.Incidente;
 import edu.eci.dosw.brigades_and_incidents.entity.TipoUbicacion;
 import edu.eci.dosw.brigades_and_incidents.event.AsignacionAuditEvent;
 import edu.eci.dosw.brigades_and_incidents.exception.ConflictoOperacionException;
 import edu.eci.dosw.brigades_and_incidents.repository.AsignacionBrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EstadoAsignacionRepository;
+import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.TipoUbicacionRepository;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,6 +42,9 @@ class AsignacionBrigadistasServiceTest {
 
     @Mock
     private TipoUbicacionRepository tipoRepository;
+
+    @Mock
+    private IncidenteRepository incidenteRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -59,6 +66,10 @@ class AsignacionBrigadistasServiceTest {
         lenient().when(retirada.getNombre()).thenReturn("RETIRADA");
         lenient().when(zonaSegura.getNombre()).thenReturn("ZONA_SEGURA");
     }
+
+    // --------------------------------------------------
+    // CREACIÓN DE ASIGNACIONES
+    // --------------------------------------------------
 
     @Test
     void debeCrearAsignacionCorrectamente() {
@@ -145,6 +156,29 @@ class AsignacionBrigadistasServiceTest {
     }
 
     @Test
+    void noDebePermitirCrearAsignacionSinIdentificadorDeActor() {
+        CrearAsignacionRequest request = new CrearAsignacionRequest(
+                "BRIG-001",
+                "EVENTO-001",
+                "ZONA-001",
+                "ZONA_SEGURA",
+                null
+        );
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.crearAsignacion(request, " ")
+        );
+
+        verifyNoInteractions(tipoRepository);
+        verify(asignacionRepository, never()).save(any());
+    }
+
+    // --------------------------------------------------
+    // MODIFICACIÓN DE ASIGNACIONES
+    // --------------------------------------------------
+
+    @Test
     void noDebeModificarUnaAsignacionRetirada() {
         UUID id = UUID.randomUUID();
         AsignacionBrigadista asignacion = mock(AsignacionBrigadista.class);
@@ -171,21 +205,179 @@ class AsignacionBrigadistasServiceTest {
     }
 
     @Test
-    void noDebePermitirCrearAsignacionSinIdentificadorDeActor() {
-        CrearAsignacionRequest request = new CrearAsignacionRequest(
-                "BRIG-001",
+    void noDebeCambiarUbicacionDelUltimoBrigadistaConIncidentesPendientes() {
+        UUID id = UUID.randomUUID();
+        AsignacionBrigadista asignacion = prepararAsignacion(id);
+
+        Incidente incidente = mock(Incidente.class);
+        EstadoIncidente estadoIncidente = mock(EstadoIncidente.class);
+
+        when(incidente.getEstado()).thenReturn(estadoIncidente);
+        when(estadoIncidente.getNombre()).thenReturn("EN_ATENCION");
+
+        when(incidenteRepository.findByEventoIdAndUbicacionId(
                 "EVENTO-001",
-                "ZONA-001",
-                "ZONA_SEGURA",
-                null
-        );
+                "ZONA-001"
+        )).thenReturn(List.of(incidente));
+
+        when(asignacionRepository.findByEventoIdAndEstado_Nombre(
+                "EVENTO-001",
+                "VIGENTE"
+        )).thenReturn(List.of(asignacion));
+
+        // CORRECCIÓN: el servicio necesita encontrar el tipo de la nueva ubicación.
+        when(tipoRepository.findByNombre("ZONA_SEGURA"))
+                .thenReturn(Optional.of(zonaSegura));
 
         assertThrows(
-                IllegalArgumentException.class,
-                () -> service.crearAsignacion(request, " ")
+                ConflictoOperacionException.class,
+                () -> service.modificarAsignacion(
+                        id,
+                        new ModificarAsignacionRequest(
+                                "ZONA-002",
+                                "ZONA_SEGURA",
+                                "Cambio de zona"
+                        ),
+                        "COORD-001"
+                )
         );
 
-        verifyNoInteractions(tipoRepository);
         verify(asignacionRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    // --------------------------------------------------
+    // RETIRO DE ASIGNACIONES
+    // --------------------------------------------------
+
+    @Test
+    void noDebeRetirarAlUltimoBrigadistaConIncidentesPendientes() {
+        UUID id = UUID.randomUUID();
+        AsignacionBrigadista asignacion = prepararAsignacion(id);
+
+        Incidente incidente = mock(Incidente.class);
+        EstadoIncidente estadoIncidente = mock(EstadoIncidente.class);
+
+        when(incidente.getEstado()).thenReturn(estadoIncidente);
+        when(estadoIncidente.getNombre()).thenReturn("EN_ATENCION");
+
+        when(incidenteRepository.findByEventoIdAndUbicacionId(
+                "EVENTO-001",
+                "ZONA-001"
+        )).thenReturn(List.of(incidente));
+
+        when(asignacionRepository.findByEventoIdAndEstado_Nombre(
+                "EVENTO-001",
+                "VIGENTE"
+        )).thenReturn(List.of());
+
+        assertThrows(
+                ConflictoOperacionException.class,
+                () -> service.retirarAsignacion(id, "COORD-001")
+        );
+
+        verify(asignacionRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void debePermitirRetirarSiExisteOtroBrigadistaEnLaZona() {
+        UUID id = UUID.randomUUID();
+        AsignacionBrigadista asignacion = prepararAsignacion(id);
+
+        AsignacionBrigadista otroBrigadista =
+                mock(AsignacionBrigadista.class);
+
+        when(otroBrigadista.getIdAsignacion())
+                .thenReturn(UUID.randomUUID());
+        when(otroBrigadista.getUbicacionId())
+                .thenReturn("ZONA-001");
+        when(otroBrigadista.getTipoUbicacion())
+                .thenReturn(zonaSegura);
+
+        Incidente incidente = mock(Incidente.class);
+        EstadoIncidente estadoIncidente = mock(EstadoIncidente.class);
+
+        when(incidente.getEstado()).thenReturn(estadoIncidente);
+        when(estadoIncidente.getNombre()).thenReturn("EN_ATENCION");
+
+        when(incidenteRepository.findByEventoIdAndUbicacionId(
+                "EVENTO-001",
+                "ZONA-001"
+        )).thenReturn(List.of(incidente));
+
+        when(asignacionRepository.findByEventoIdAndEstado_Nombre(
+                "EVENTO-001",
+                "VIGENTE"
+        )).thenReturn(List.of(otroBrigadista));
+
+        when(estadoRepository.findByNombre("RETIRADA"))
+                .thenReturn(Optional.of(retirada));
+
+        when(asignacionRepository.save(asignacion))
+                .thenReturn(asignacion);
+
+        var response = service.retirarAsignacion(id, "COORD-001");
+
+        assertNotNull(response);
+        assertEquals("RETIRADA", response.estado());
+
+        verify(asignacionRepository).save(asignacion);
+        verify(eventPublisher).publishEvent(any(AsignacionAuditEvent.class));
+    }
+
+    @Test
+    void debePermitirRetirarCuandoLosIncidentesEstanResueltos() {
+        UUID id = UUID.randomUUID();
+        AsignacionBrigadista asignacion = prepararAsignacion(id);
+
+        Incidente incidente = mock(Incidente.class);
+        EstadoIncidente estadoIncidente = mock(EstadoIncidente.class);
+
+        when(incidente.getEstado()).thenReturn(estadoIncidente);
+        when(estadoIncidente.getNombre()).thenReturn("RESUELTO");
+
+        when(incidenteRepository.findByEventoIdAndUbicacionId(
+                "EVENTO-001",
+                "ZONA-001"
+        )).thenReturn(List.of(incidente));
+
+        when(estadoRepository.findByNombre("RETIRADA"))
+                .thenReturn(Optional.of(retirada));
+
+        when(asignacionRepository.save(asignacion))
+                .thenReturn(asignacion);
+
+        var response = service.retirarAsignacion(id, "COORD-001");
+
+        assertNotNull(response);
+        assertEquals("RETIRADA", response.estado());
+
+        verify(asignacionRepository).save(asignacion);
+        verify(eventPublisher).publishEvent(any(AsignacionAuditEvent.class));
+    }
+
+    // --------------------------------------------------
+    // MÉTODO AUXILIAR
+    // --------------------------------------------------
+
+    private AsignacionBrigadista prepararAsignacion(UUID id) {
+        AsignacionBrigadista asignacion =
+                mock(AsignacionBrigadista.class);
+
+        lenient().when(asignacionRepository.findById(id))
+                .thenReturn(Optional.of(asignacion));
+
+        lenient().when(asignacion.getIdAsignacion()).thenReturn(id);
+        lenient().when(asignacion.getBrigadistaId()).thenReturn("BRIG-001");
+        lenient().when(asignacion.getEventoId()).thenReturn("EVENTO-001");
+        lenient().when(asignacion.getUbicacionId()).thenReturn("ZONA-001");
+        lenient().when(asignacion.getTipoUbicacion()).thenReturn(zonaSegura);
+        lenient().when(asignacion.getObservaciones()).thenReturn("Prueba");
+
+        lenient().when(asignacion.getEstado())
+                .thenReturn(vigente, retirada);
+
+        return asignacion;
     }
 }

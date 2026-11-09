@@ -29,6 +29,9 @@ class IncidenteServiceAutorizacionTest {
     private IncidenteRepository incidenteRepository;
 
     @Mock
+    private HistorialIncidenteRepository historialRepository;
+
+    @Mock
     private PrioridadIncidenteRepository prioridadRepository;
 
     @Mock
@@ -69,6 +72,7 @@ class IncidenteServiceAutorizacionTest {
     void configurar() {
         incidenteService = new IncidenteService(
                 incidenteRepository,
+                historialRepository,
                 prioridadRepository,
                 estadoRepository,
                 tipoUbicacionRepository,
@@ -266,11 +270,6 @@ class IncidenteServiceAutorizacionTest {
                         "ACTIVO"
                 ));
 
-        /*
-         * El evento no está configurado en este test.
-         * Llegar a esta validación demuestra que el rol
-         * superó correctamente la autorización.
-         */
         assertThrows(
                 IllegalStateException.class,
                 () -> incidenteService.registrarIncidente(
@@ -296,10 +295,6 @@ class IncidenteServiceAutorizacionTest {
                         "ACTIVO"
                 ));
 
-        /*
-         * Al no indicar nombreAfectado, el brigadista
-         * registra una solicitud para sí mismo.
-         */
         assertThrows(
                 IllegalStateException.class,
                 () -> incidenteService.registrarIncidente(

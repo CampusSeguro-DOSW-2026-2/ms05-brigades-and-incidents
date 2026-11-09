@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.client;
 
 import org.springframework.context.annotation.Profile;
@@ -6,7 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-@Profile("stub")
+@Profile({"stub", "local"})
 public class UbicacionClientStub implements UbicacionClient {
 
     private final List<UbicacionExterna> ubicaciones = List.of(

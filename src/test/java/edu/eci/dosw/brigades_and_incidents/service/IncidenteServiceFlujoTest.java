@@ -5,6 +5,7 @@ import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResponse;
+import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.mapper.IncidenteMapper;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
@@ -13,9 +14,12 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class IncidenteServiceFlujoTest {
@@ -30,6 +34,7 @@ class IncidenteServiceFlujoTest {
     private UbicacionClient ubicacionClient;
     private UsuarioClient usuarioClient;
     private IncidenteMapper incidenteMapper;
+    private IncidenteAuditPublisher auditPublisher;
 
     private IncidenteService incidenteService;
 
@@ -60,6 +65,7 @@ class IncidenteServiceFlujoTest {
         ubicacionClient = mock(UbicacionClient.class);
         usuarioClient = mock(UsuarioClient.class);
         incidenteMapper = mock(IncidenteMapper.class);
+        auditPublisher = mock(IncidenteAuditPublisher.class);
 
         incidenteService = new IncidenteService(
                 incidenteRepository,
@@ -71,7 +77,8 @@ class IncidenteServiceFlujoTest {
                 gestionEventoService,
                 ubicacionClient,
                 usuarioClient,
-                incidenteMapper
+                incidenteMapper,
+                auditPublisher
         );
 
         // Configuración de un evento activo.
@@ -115,9 +122,13 @@ class IncidenteServiceFlujoTest {
                 "VIGENTE"
         )).thenReturn(List.of());
 
-        // Simula el guardado y devuelve el mismo incidente recibido.
+        // Simula el guardado y asigna un UUID al incidente.
         when(incidenteRepository.save(any(Incidente.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Incidente incidente = invocation.getArgument(0);
+                    incidente.setId(UUID.randomUUID());
+                    return incidente;
+                });
     }
 
     @Test
@@ -157,8 +168,18 @@ class IncidenteServiceFlujoTest {
         assertSame(respuestaEsperada, respuesta);
 
         verify(incidenteRepository).save(any(Incidente.class));
-
         verify(incidenteMapper).toResponse(any(Incidente.class));
+
+        // Verifica que se publique el evento de auditoría.
+        verify(auditPublisher).publicar(
+                eq("CREAR_INCIDENTE"),
+                eq("INCIDENTE"),
+                anyString(),
+                eq(EVENTO_ID),
+                eq(USUARIO_ID),
+                eq("EXITOSO"),
+                anyString()
+        );
 
         verify(ubicacionClient).consultarUbicacion(
                 "EDIF-001",
@@ -171,6 +192,8 @@ class IncidenteServiceFlujoTest {
                 .findByUsuarioIdExterno(USUARIO_ID);
 
         Incidente incidenteGuardado = capturarIncidenteGuardado();
+
+        assertNotNull(incidenteGuardado.getId());
 
         assertEquals(
                 "Daniel García",
@@ -188,9 +211,7 @@ class IncidenteServiceFlujoTest {
         );
 
         assertSame(prioridad, incidenteGuardado.getPrioridad());
-
         assertSame(tipoUbicacion, incidenteGuardado.getTipoUbicacion());
-
         assertSame(estadoReportado, incidenteGuardado.getEstado());
 
         assertEquals(
@@ -250,6 +271,8 @@ class IncidenteServiceFlujoTest {
                 .findByUsuarioIdExterno(BRIGADISTA_ID);
 
         Incidente incidenteGuardado = capturarIncidenteGuardado();
+
+        assertNotNull(incidenteGuardado.getId());
 
         assertEquals(
                 "Persona afectada",
@@ -430,6 +453,8 @@ class IncidenteServiceFlujoTest {
         );
 
         Incidente incidenteGuardado = capturarIncidenteGuardado();
+
+        assertNotNull(incidenteGuardado.getId());
 
         // Si existe un brigadista activo asignado, el estado debe ser ASIGNADO.
         assertSame(

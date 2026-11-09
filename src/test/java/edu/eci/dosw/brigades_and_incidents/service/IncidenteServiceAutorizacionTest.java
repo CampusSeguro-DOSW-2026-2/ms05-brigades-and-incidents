@@ -4,6 +4,7 @@ package edu.eci.dosw.brigades_and_incidents.service;
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
+import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.mapper.IncidenteMapper;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +55,9 @@ class IncidenteServiceAutorizacionTest {
     @Mock
     private IncidenteMapper incidenteMapper;
 
+    @Mock
+    private IncidenteAuditPublisher auditPublisher;
+
     private IncidenteService incidenteService;
 
     private static final String USUARIO_ID =
@@ -63,7 +67,6 @@ class IncidenteServiceAutorizacionTest {
 
     @BeforeEach
     void configurar() {
-
         incidenteService = new IncidenteService(
                 incidenteRepository,
                 prioridadRepository,
@@ -74,7 +77,8 @@ class IncidenteServiceAutorizacionTest {
                 gestionEventoService,
                 ubicacionClient,
                 usuarioClient,
-                incidenteMapper
+                incidenteMapper,
+                auditPublisher
         );
     }
 
@@ -117,7 +121,6 @@ class IncidenteServiceAutorizacionTest {
 
     @Test
     void usuarioSinIdentidadNoPuedeRegistrarIncidente() {
-
         assertThrows(
                 ResponseStatusException.class,
                 () -> incidenteService.registrarIncidente(
@@ -136,7 +139,6 @@ class IncidenteServiceAutorizacionTest {
 
     @Test
     void usuarioInexistenteEnMs01NoPuedeRegistrarIncidente() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(null);
 
@@ -154,7 +156,6 @@ class IncidenteServiceAutorizacionTest {
 
     @Test
     void usuarioInactivoNoPuedeRegistrarIncidente() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Usuario Inactivo",
@@ -180,7 +181,6 @@ class IncidenteServiceAutorizacionTest {
 
     @Test
     void auditorNoPuedeRegistrarIncidentes() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Usuario Auditor",
@@ -198,13 +198,11 @@ class IncidenteServiceAutorizacionTest {
         );
 
         assertEquals(403, excepcion.getStatusCode().value());
-
         verifyNoInteractions(gestionEventoService);
     }
 
     @Test
     void rolDesconocidoNoPuedeRegistrarIncidentes() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Usuario sin permisos",
@@ -226,7 +224,6 @@ class IncidenteServiceAutorizacionTest {
 
     @Test
     void usuarioConRolBrigadistaYAuditorNoPuedeRegistrar() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Usuario con dos roles",
@@ -262,7 +259,6 @@ class IncidenteServiceAutorizacionTest {
     void usuarioGeneralConRolPermitidoPuedeIniciarRegistro(
             String rol
     ) {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Usuario de prueba",
@@ -293,7 +289,6 @@ class IncidenteServiceAutorizacionTest {
 
     @Test
     void brigadistaActivoEnMs01PuedeIniciarRegistroPropio() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Paula Novoa",
@@ -315,13 +310,11 @@ class IncidenteServiceAutorizacionTest {
         );
 
         verify(gestionEventoService).obtenerConfiguracion(EVENTO_ID);
-
         verifyNoInteractions(brigadistaRepository);
     }
 
     @Test
     void brigadistaSinRegistroEnMs05NoPuedeRegistrarParaTercero() {
-
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Paula Novoa",

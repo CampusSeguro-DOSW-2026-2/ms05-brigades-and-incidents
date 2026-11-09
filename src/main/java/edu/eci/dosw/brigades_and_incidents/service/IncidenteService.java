@@ -6,6 +6,7 @@ import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
+import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.exception.Ms01IntegrationException;
 import edu.eci.dosw.brigades_and_incidents.mapper.IncidenteMapper;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
@@ -43,6 +44,7 @@ public class IncidenteService {
     private final UbicacionClient ubicacionClient;
     private final UsuarioClient usuarioClient;
     private final IncidenteMapper incidenteMapper;
+    private final IncidenteAuditPublisher auditPublisher;
 
     public IncidenteService(
             IncidenteRepository incidenteRepository,
@@ -54,7 +56,8 @@ public class IncidenteService {
             GestionOperacionEventoService gestionEventoService,
             UbicacionClient ubicacionClient,
             UsuarioClient usuarioClient,
-            IncidenteMapper incidenteMapper
+            IncidenteMapper incidenteMapper,
+            IncidenteAuditPublisher auditPublisher
     ) {
         this.incidenteRepository = incidenteRepository;
         this.prioridadRepository = prioridadRepository;
@@ -66,6 +69,7 @@ public class IncidenteService {
         this.ubicacionClient = ubicacionClient;
         this.usuarioClient = usuarioClient;
         this.incidenteMapper = incidenteMapper;
+        this.auditPublisher = auditPublisher;
     }
 
     @Transactional
@@ -97,13 +101,11 @@ public class IncidenteService {
         if (esBrigadista && request.nombreAfectado() != null
                 && !request.nombreAfectado().isBlank()) {
 
-            // El brigadista puede registrar una solicitud para otra persona.
             validarBrigadistaActivo(reportanteId);
             nombreAfectado = request.nombreAfectado().trim();
 
         } else {
 
-            // Si no se especifica otra persona, el incidente es propio.
             nombreAfectado = usuario.nombreCompleto();
 
             if (nombreAfectado == null || nombreAfectado.isBlank()) {
@@ -161,7 +163,20 @@ public class IncidenteService {
         Incidente incidenteGuardado =
                 incidenteRepository.save(incidente);
 
-        return incidenteMapper.toResponse(incidenteGuardado);
+        IncidenteResponse response =
+                incidenteMapper.toResponse(incidenteGuardado);
+
+        auditPublisher.publicar(
+                "CREAR_INCIDENTE",
+                "INCIDENTE",
+                incidenteGuardado.getId().toString(),
+                eventoId,
+                reportanteId,
+                "EXITOSO",
+                "Se registró un incidente."
+        );
+
+        return response;
     }
 
     private void validarIdentidad(String reportanteId) {

@@ -1,11 +1,14 @@
+
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.EvidenciaIncidenteResponse;
+import edu.eci.dosw.brigades_and_incidents.entity.Brigadista;
 import edu.eci.dosw.brigades_and_incidents.entity.EvidenciaIncidente;
 import edu.eci.dosw.brigades_and_incidents.entity.Incidente;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.exception.EvidenciaIncidenteException;
+import edu.eci.dosw.brigades_and_incidents.repository.BrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EvidenciaIncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
 import org.springframework.http.HttpStatus;
@@ -42,9 +45,12 @@ public class EvidenciaIncidenteService {
 
     private static final String ROL_BRIGADISTA = "BRIGADISTA";
     private static final String ROL_AUDITOR = "AUDITOR";
+    private static final String ESTADO_CERRADO = "CERRADO";
+    private static final String ESTADO_ACTIVO = "ACTIVO";
 
     private final EvidenciaIncidenteRepository evidenciaRepository;
     private final IncidenteRepository incidenteRepository;
+    private final BrigadistaRepository brigadistaRepository;
     private final EvidenciaStorage evidenciaStorage;
     private final IncidenteAuditPublisher auditPublisher;
     private final UsuarioClient usuarioClient;
@@ -52,12 +58,14 @@ public class EvidenciaIncidenteService {
     public EvidenciaIncidenteService(
             EvidenciaIncidenteRepository evidenciaRepository,
             IncidenteRepository incidenteRepository,
+            BrigadistaRepository brigadistaRepository,
             EvidenciaStorage evidenciaStorage,
             IncidenteAuditPublisher auditPublisher,
             UsuarioClient usuarioClient
     ) {
         this.evidenciaRepository = evidenciaRepository;
         this.incidenteRepository = incidenteRepository;
+        this.brigadistaRepository = brigadistaRepository;
         this.evidenciaStorage = evidenciaStorage;
         this.auditPublisher = auditPublisher;
         this.usuarioClient = usuarioClient;
@@ -70,20 +78,22 @@ public class EvidenciaIncidenteService {
             MultipartFile archivo,
             String usuarioId
     ) {
-        validarPermisos(usuarioId);
+        // 1. Validar que el usuario esté autenticado.
+        validarIdentidad(usuarioId);
+
+        // 2. Buscar el incidente.
+        Incidente incidente = buscarIncidente(eventoId, incidenteId);
+
+        // 3. Verificar que el incidente no esté cerrado.
+        validarIncidenteAbierto(incidente);
+
+        // 4. Consultar usuario y validar permisos sobre el incidente.
+        validarPermisos(usuarioId, incidente);
+
+        // 5. Validar el archivo.
         validarArchivo(archivo);
 
-        Incidente incidente = incidenteRepository.findById(incidenteId)
-                .orElseThrow(() -> new EvidenciaIncidenteException(
-                        "El incidente indicado no existe."
-                ));
-
-        if (!incidente.getEventoId().equals(eventoId)) {
-            throw new EvidenciaIncidenteException(
-                    "El incidente no pertenece al evento indicado."
-            );
-        }
-
+        // 6. Verificar el límite de evidencias.
         if (evidenciaRepository.countByIncidenteId(incidenteId)
                 >= MAXIMO_EVIDENCIAS) {
             throw new EvidenciaIncidenteException(
@@ -91,6 +101,7 @@ public class EvidenciaIncidenteService {
             );
         }
 
+        // 7. Guardar el archivo.
         String referencia = evidenciaStorage.guardar(archivo);
 
         try {
@@ -106,6 +117,7 @@ public class EvidenciaIncidenteService {
             EvidenciaIncidente guardada =
                     evidenciaRepository.save(evidencia);
 
+            // 8. Registrar auditoría.
             auditPublisher.publicar(
                     "CARGAR_EVIDENCIA",
                     "EVIDENCIA_INCIDENTE",
@@ -130,6 +142,30 @@ public class EvidenciaIncidenteService {
             String eventoId,
             UUID incidenteId
     ) {
+        // El incidente debe existir y pertenecer al evento.
+        buscarIncidente(eventoId, incidenteId);
+
+        // Si no existen evidencias, se devuelve una lista vacía.
+        return evidenciaRepository.findByIncidenteId(incidenteId)
+                .stream()
+                .map(this::convertirRespuesta)
+                .toList();
+    }
+
+    private void validarIdentidad(String usuarioId) {
+
+        if (usuarioId == null || usuarioId.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "No se pudo identificar al usuario autenticado."
+            );
+        }
+    }
+
+    private Incidente buscarIncidente(
+            String eventoId,
+            UUID incidenteId
+    ) {
         Incidente incidente = incidenteRepository.findById(incidenteId)
                 .orElseThrow(() -> new EvidenciaIncidenteException(
                         "El incidente indicado no existe."
@@ -141,21 +177,27 @@ public class EvidenciaIncidenteService {
             );
         }
 
-        return evidenciaRepository.findByIncidenteId(incidenteId)
-                .stream()
-                .map(this::convertirRespuesta)
-                .toList();
+        return incidente;
     }
 
-    private void validarPermisos(String usuarioId) {
+    private void validarIncidenteAbierto(Incidente incidente) {
 
-        if (usuarioId == null || usuarioId.isBlank()) {
+        if (incidente.getEstado() == null
+                || ESTADO_CERRADO.equalsIgnoreCase(
+                        incidente.getEstado().getNombre()
+                )) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "No se pudo identificar al usuario autenticado."
+                    HttpStatus.CONFLICT,
+                    "No se pueden adjuntar evidencias a un incidente cerrado."
             );
         }
+    }
 
+    private void validarPermisos(
+            String usuarioId,
+            Incidente incidente
+    ) {
+        // Consultar usuario en MS01.
         UsuarioClient.UsuarioExterno usuario =
                 usuarioClient.consultarUsuario(usuarioId);
 
@@ -167,7 +209,7 @@ public class EvidenciaIncidenteService {
         }
 
         if (usuario.estado() == null
-                || !"ACTIVO".equalsIgnoreCase(usuario.estado())) {
+                || !ESTADO_ACTIVO.equalsIgnoreCase(usuario.estado())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "El usuario se encuentra inactivo."
@@ -181,6 +223,7 @@ public class EvidenciaIncidenteService {
                         .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
                         .collect(Collectors.toSet());
 
+        // Los auditores no pueden adjuntar evidencias.
         if (roles.contains(ROL_AUDITOR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -188,15 +231,56 @@ public class EvidenciaIncidenteService {
             );
         }
 
-        boolean usuarioAutorizado = roles.stream()
+        boolean esPropietario = usuarioId.equals(
+                incidente.getReportanteId()
+        );
+
+        boolean esUsuarioGeneral = roles.stream()
                 .anyMatch(ROLES_USUARIO_GENERAL::contains);
 
         boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
 
-        if (!usuarioAutorizado && !esBrigadista) {
+        if (esPropietario) {
+
+            // El propietario debe tener un rol autorizado.
+            if (!esUsuarioGeneral && !esBrigadista) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "El usuario no tiene permisos para adjuntar evidencias."
+                );
+            }
+
+        } else {
+
+            // Para incidentes ajenos se requiere ser brigadista activo.
+            if (!esBrigadista) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Solo un brigadista activo puede adjuntar evidencias "
+                                + "a incidentes de otros usuarios."
+                );
+            }
+
+            validarBrigadistaActivo(usuarioId);
+        }
+    }
+
+    private void validarBrigadistaActivo(String usuarioId) {
+
+        Brigadista brigadista = brigadistaRepository
+                .findByUsuarioIdExterno(usuarioId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "El usuario no está registrado como brigadista."
+                ));
+
+        if (brigadista.getEstado() == null
+                || !ESTADO_ACTIVO.equalsIgnoreCase(
+                        brigadista.getEstado().getNombre()
+                )) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "El usuario no tiene un rol autorizado para cargar evidencias."
+                    "El brigadista debe estar activo para realizar esta operación."
             );
         }
     }

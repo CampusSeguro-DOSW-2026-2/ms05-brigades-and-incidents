@@ -1,9 +1,9 @@
-
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
+import edu.eci.dosw.brigades_and_incidents.dto.EditarIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -179,6 +180,121 @@ public class IncidenteService {
         return response;
     }
 
+    /**
+     * Edita la descripción de un incidente existente.
+     * El propietario puede editar su incidente y un brigadista activo
+     * puede editar incidentes reportados por otros usuarios.
+     */
+    @Transactional
+    public IncidenteResponse editarIncidente(
+            String eventoId,
+            UUID incidenteId,
+            EditarIncidenteRequest request,
+            String usuarioId
+    ) {
+        // 1. Validar identidad.
+        validarIdentidad(usuarioId);
+
+        // 2. Buscar el incidente.
+        Incidente incidente = incidenteRepository.findById(incidenteId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "El incidente no existe."
+                ));
+
+        // 3. Verificar que pertenece al evento.
+        if (!incidente.getEventoId().equals(eventoId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "El incidente no pertenece al evento indicado."
+            );
+        }
+
+        // 4. Verificar que no esté cerrado.
+        if (incidente.getEstado() == null
+                || "CERRADO".equalsIgnoreCase(
+                        incidente.getEstado().getNombre()
+                )) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede editar un incidente cerrado."
+            );
+        }
+
+        // 5. Consultar al usuario autenticado.
+        UsuarioClient.UsuarioExterno usuario =
+                usuarioClient.consultarUsuario(usuarioId);
+
+        validarUsuarioExistenteYActivo(usuario);
+
+        Set<String> roles = usuario.roles() == null
+                ? Set.of()
+                : usuario.roles().stream()
+                        .filter(rol -> rol != null && !rol.isBlank())
+                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toSet());
+
+        // 6. Rechazar auditores.
+        if (roles.contains(ROL_AUDITOR)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Los usuarios con rol auditor no pueden editar incidentes."
+            );
+        }
+
+        // 7. Comprobar si el usuario es el propietario.
+        boolean esPropietario =
+                incidente.getReportanteId().equals(usuarioId);
+
+        boolean esUsuarioGeneral = roles.stream()
+                .anyMatch(ROLES_USUARIO_GENERAL::contains);
+
+        boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
+
+        if (esPropietario) {
+
+            if (!esUsuarioGeneral && !esBrigadista) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "El usuario no tiene permisos para editar este incidente."
+                );
+            }
+
+        } else {
+
+            // Para editar incidentes ajenos debe ser brigadista activo.
+            if (!esBrigadista) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Solo un brigadista activo puede editar incidentes de otros usuarios."
+                );
+            }
+
+            validarBrigadistaActivo(usuarioId);
+        }
+
+        // 8. Actualizar únicamente la descripción.
+        if (request != null && request.descripcion() != null) {
+            incidente.setDescripcion(request.descripcion().trim());
+        }
+
+        Incidente actualizado = incidenteRepository.save(incidente);
+
+        // 9. Registrar auditoría.
+        auditPublisher.publicar(
+                "EDITAR_INCIDENTE",
+                "INCIDENTE",
+                actualizado.getId().toString(),
+                eventoId,
+                usuarioId,
+                "EXITOSO",
+                "Se actualizó la descripción del incidente."
+        );
+
+        // 10. Devolver respuesta.
+        return incidenteMapper.toResponse(actualizado);
+    }
+
     private void validarIdentidad(String reportanteId) {
         if (reportanteId == null || reportanteId.isBlank()) {
             throw new ResponseStatusException(
@@ -280,7 +396,7 @@ public class IncidenteService {
                 )) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "El brigadista debe estar activo para registrar incidentes en nombre de otra persona."
+                    "El brigadista debe estar activo para realizar esta operación."
             );
         }
     }

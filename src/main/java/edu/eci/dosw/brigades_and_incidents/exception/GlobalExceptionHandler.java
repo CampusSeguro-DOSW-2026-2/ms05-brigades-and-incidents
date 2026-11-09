@@ -14,40 +14,37 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Recurso solicitado que no existe: HTTP 404.
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<ErrorResponse> manejarNoEncontrado(
             RecursoNoEncontradoException ex) {
 
-        return construirRespuesta(
-                HttpStatus.NOT_FOUND,
-                ex.getMessage()
-        );
+        return construirRespuesta(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    // Operación que incumple una regla de negocio: HTTP 409.
     @ExceptionHandler(ConflictoOperacionException.class)
     public ResponseEntity<ErrorResponse> manejarConflicto(
             ConflictoOperacionException ex) {
 
+        return construirRespuesta(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(Ms01IntegrationException.class)
+    public ResponseEntity<ErrorResponse> manejarIntegracionMs01(
+            Ms01IntegrationException ex) {
+
         return construirRespuesta(
-                HttpStatus.CONFLICT,
-                ex.getMessage()
+                HttpStatus.BAD_GATEWAY,
+                "No fue posible completar la operación con el servicio de identidad."
         );
     }
 
-    // Argumentos inválidos: HTTP 400.
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> manejarArgumentoInvalido(
             IllegalArgumentException ex) {
 
-        return construirRespuesta(
-                HttpStatus.BAD_REQUEST,
-                ex.getMessage()
-        );
+        return construirRespuesta(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
-    // Errores de validación de los DTO: HTTP 400.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> manejarValidaciones(
             MethodArgumentNotValidException ex) {
@@ -60,13 +57,9 @@ public class GlobalExceptionHandler {
                 )
                 .collect(Collectors.joining("; "));
 
-        return construirRespuesta(
-                HttpStatus.BAD_REQUEST,
-                mensaje
-        );
+        return construirRespuesta(HttpStatus.BAD_REQUEST, mensaje);
     }
 
-    // Errores HTTP generados desde los controladores: 403, 401, etc.
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> manejarEstadoHttp(
             ResponseStatusException ex) {
@@ -83,7 +76,6 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // Cualquier error inesperado: HTTP 500.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> manejarErrorGeneral(
             Exception ex) {
@@ -94,7 +86,6 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // Construye todas las respuestas con el mismo formato.
     private ResponseEntity<ErrorResponse> construirRespuesta(
             HttpStatus status,
             String mensaje) {

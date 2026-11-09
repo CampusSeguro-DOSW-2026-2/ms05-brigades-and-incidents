@@ -9,4 +9,6 @@ public interface PrioridadIncidenteRepository
         extends JpaRepository<PrioridadIncidente, Long> {
 
     Optional<PrioridadIncidente> findByNombre(String nombre);
+
+    Optional<PrioridadIncidente> findByNombreIgnoreCase(String nombre);
 }

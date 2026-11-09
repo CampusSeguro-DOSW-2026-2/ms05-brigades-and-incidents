@@ -9,6 +9,7 @@ public record IncidenteResumenDTO(
         String tipoUbicacion,
         String prioridad,
         String estado,
+        String brigadistaResponsableId,
         OffsetDateTime reportadoEn
 ) {
 }

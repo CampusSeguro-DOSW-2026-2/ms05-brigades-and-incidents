@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.entity;
 
 import jakarta.persistence.*;
@@ -56,6 +57,10 @@ public class Incidente {
 
     @Column(name = "observaciones_resolucion", length = 1000)
     private String observacionesResolucion;
+
+    // Indica si el incidente fue eliminado logicamente.
+    @Column(nullable = false)
+    private boolean eliminado = false;
 
     public Incidente() {
     }
@@ -178,6 +183,14 @@ public class Incidente {
 
     public void setObservacionesResolucion(String observacionesResolucion) {
         this.observacionesResolucion = observacionesResolucion;
+    }
+
+    public boolean isEliminado() {
+        return eliminado;
+    }
+
+    public void setEliminado(boolean eliminado) {
+        this.eliminado = eliminado;
     }
 
     @PrePersist

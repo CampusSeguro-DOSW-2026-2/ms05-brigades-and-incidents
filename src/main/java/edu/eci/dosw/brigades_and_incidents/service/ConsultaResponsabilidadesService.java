@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.dto.AsignacionBrigadistaResumenResponse;
@@ -121,6 +122,7 @@ public class ConsultaResponsabilidadesService {
                                 incidente.getTipoUbicacion().getNombre(),
                                 incidente.getPrioridad().getNombre(),
                                 incidente.getEstado().getNombre(),
+                                incidente.getBrigadistaResponsableId(),
                                 incidente.getFechaReporte()
                         ))
                         .toList();

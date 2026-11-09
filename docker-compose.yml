@@ -1,0 +1,23 @@
+
+services:
+  ms05-postgres:
+    image: postgres:17-alpine
+    container_name: ms05-brigades-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: brigades_incidents_db
+      POSTGRES_USER: campusseguro
+      POSTGRES_PASSWORD: ms05_dev_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - ms05_postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusseguro -d brigades_incidents_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ms05_postgres_data:

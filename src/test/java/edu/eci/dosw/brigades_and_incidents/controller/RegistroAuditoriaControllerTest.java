@@ -3,12 +3,16 @@ package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.entity.RegistroAuditoria;
 import edu.eci.dosw.brigades_and_incidents.entity.TipoRegistroAuditoria;
+import edu.eci.dosw.brigades_and_incidents.security.SecurityConfig;
 import edu.eci.dosw.brigades_and_incidents.service.RegistroAuditoriaService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -18,6 +22,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@Import(SecurityConfig.class)
 @WebMvcTest(RegistroAuditoriaController.class)
 class RegistroAuditoriaControllerTest {
 
@@ -26,6 +31,12 @@ class RegistroAuditoriaControllerTest {
 
     @MockitoBean
     private RegistroAuditoriaService auditoriaService;
+
+    private MockHttpServletRequestBuilder solicitudAuditor(String url) {
+        return get(url)
+                .header("X-User-Id", "auditor-123")
+                .header("X-User-Role", "AUDITOR");
+    }
 
     private RegistroAuditoria crearRegistro() {
         TipoRegistroAuditoria tipo = new TipoRegistroAuditoria();
@@ -56,7 +67,7 @@ class RegistroAuditoriaControllerTest {
         when(auditoriaService.consultarTodos())
                 .thenReturn(List.of());
 
-        mockMvc.perform(get("/api/v1/auditoria"))
+        mockMvc.perform(solicitudAuditor("/api/v1/auditoria"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
     }
@@ -66,7 +77,7 @@ class RegistroAuditoriaControllerTest {
         when(auditoriaService.consultarTodos())
                 .thenReturn(List.of(crearRegistro()));
 
-        mockMvc.perform(get("/api/v1/auditoria"))
+        mockMvc.perform(solicitudAuditor("/api/v1/auditoria"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tipoRegistro").value("INCIDENTE"))
                 .andExpect(jsonPath("$[0].usuarioOrigen").value("usuario-123"))
@@ -80,7 +91,9 @@ class RegistroAuditoriaControllerTest {
         when(auditoriaService.consultarPorEvento("evento-123"))
                 .thenReturn(List.of());
 
-        mockMvc.perform(get("/api/v1/auditoria/eventos/evento-123"))
+        mockMvc.perform(
+                solicitudAuditor("/api/v1/auditoria/eventos/evento-123")
+        )
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
     }
@@ -90,7 +103,9 @@ class RegistroAuditoriaControllerTest {
         when(auditoriaService.consultarPorEvento("evento-123"))
                 .thenReturn(List.of(crearRegistro()));
 
-        mockMvc.perform(get("/api/v1/auditoria/eventos/evento-123"))
+        mockMvc.perform(
+                solicitudAuditor("/api/v1/auditoria/eventos/evento-123")
+        )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].eventoId").value("evento-123"))
                 .andExpect(jsonPath("$[0].accion").value("CREAR_INCIDENTE"));
@@ -103,7 +118,9 @@ class RegistroAuditoriaControllerTest {
         )).thenReturn(List.of());
 
         mockMvc.perform(
-                get("/api/v1/auditoria/recursos/INCIDENTE/incidente-123")
+                solicitudAuditor(
+                        "/api/v1/auditoria/recursos/INCIDENTE/incidente-123"
+                )
         )
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
@@ -116,7 +133,9 @@ class RegistroAuditoriaControllerTest {
         )).thenReturn(List.of(crearRegistro()));
 
         mockMvc.perform(
-                get("/api/v1/auditoria/recursos/INCIDENTE/incidente-123")
+                solicitudAuditor(
+                        "/api/v1/auditoria/recursos/INCIDENTE/incidente-123"
+                )
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].recursoTipo").value("INCIDENTE"))

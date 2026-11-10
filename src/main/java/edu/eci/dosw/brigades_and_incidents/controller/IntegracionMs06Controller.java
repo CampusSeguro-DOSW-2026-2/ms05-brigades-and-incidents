@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.ActualizarEstadoEventoRequest;
@@ -6,7 +7,9 @@ import edu.eci.dosw.brigades_and_incidents.dto.IndicadoresEventoResponse;
 import edu.eci.dosw.brigades_and_incidents.service.ConsultaBrigadistasEventoService;
 import edu.eci.dosw.brigades_and_incidents.service.GestionOperacionEventoService;
 import edu.eci.dosw.brigades_and_incidents.service.IndicadoresEventoService;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -27,6 +30,8 @@ public class IntegracionMs06Controller {
         this.indicadoresService = indicadoresService;
     }
 
+    // Actualizar el estado operativo de un evento desde MS06.
+    @PreAuthorize("hasRole('SERVICE_MS06')")
     @PutMapping("/{eventoId}/estado")
     public ResponseEntity<Void> actualizarEstado(
             @PathVariable String eventoId,
@@ -36,6 +41,8 @@ public class IntegracionMs06Controller {
         return ResponseEntity.noContent().build();
     }
 
+    // Consultar brigadistas de un evento desde MS06.
+    @PreAuthorize("hasRole('SERVICE_MS06')")
     @GetMapping("/{eventoId}/brigadistas")
     public ResponseEntity<BrigadistasEventoResponse> consultarBrigadistas(
             @PathVariable String eventoId
@@ -45,6 +52,8 @@ public class IntegracionMs06Controller {
         );
     }
 
+    // Consultar indicadores de un evento desde MS06.
+    @PreAuthorize("hasRole('SERVICE_MS06')")
     @GetMapping("/{eventoId}/indicadores")
     public ResponseEntity<IndicadoresEventoResponse> consultarIndicadores(
             @PathVariable String eventoId

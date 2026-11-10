@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.AsignarResponsableRequest;
@@ -5,8 +6,11 @@ import edu.eci.dosw.brigades_and_incidents.dto.CambioEstadoIncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.HistorialIncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.ResolverIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.service.GestionAtencionIncidenteService;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +28,8 @@ public class GestionAtencionIncidenteController {
         this.gestionService = gestionService;
     }
 
+    // Asignar un responsable. Solo coordinadores.
+    @PreAuthorize("hasRole('COORDINATOR')")
     @PatchMapping("/responsable")
     public ResponseEntity<CambioEstadoIncidenteResponse> asignarResponsable(
             @PathVariable String eventoId,
@@ -42,6 +48,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
+    // Iniciar atención. Solo brigadistas.
+    @PreAuthorize("hasRole('BRIGADISTA')")
     @PostMapping("/iniciar-atencion")
     public ResponseEntity<CambioEstadoIncidenteResponse> iniciarAtencion(
             @PathVariable String eventoId,
@@ -58,6 +66,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
+    // Resolver incidente. Solo brigadistas.
+    @PreAuthorize("hasRole('BRIGADISTA')")
     @PostMapping("/resolver")
     public ResponseEntity<CambioEstadoIncidenteResponse> resolverIncidente(
             @PathVariable String eventoId,
@@ -76,6 +86,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
+    // Cerrar incidente. Solo coordinadores.
+    @PreAuthorize("hasRole('COORDINATOR')")
     @PostMapping("/cerrar")
     public ResponseEntity<CambioEstadoIncidenteResponse> cerrarIncidente(
             @PathVariable String eventoId,
@@ -92,6 +104,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
+    // Consultar historial. Coordinadores, brigadistas y auditores.
+    @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA', 'AUDITOR')")
     @GetMapping("/historial")
     public ResponseEntity<List<HistorialIncidenteResponse>> consultarHistorial(
             @PathVariable String eventoId,

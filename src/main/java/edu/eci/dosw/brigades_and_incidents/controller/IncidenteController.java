@@ -11,8 +11,10 @@ import edu.eci.dosw.brigades_and_incidents.service.ConsultaIncidentesService;
 import edu.eci.dosw.brigades_and_incidents.service.IncidenteService;
 
 import jakarta.validation.Valid;
+
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -31,6 +33,8 @@ public class IncidenteController {
         this.consultaIncidentesService = consultaIncidentesService;
     }
 
+    // Registrar un incidente. Requiere un usuario autenticado.
+    @PreAuthorize("isAuthenticated()")
     @PostMapping
     public ResponseEntity<IncidenteResponse> registrarIncidente(
             @PathVariable String eventoId,
@@ -43,6 +47,8 @@ public class IncidenteController {
         return ResponseEntity.ok(response);
     }
 
+    // Modificar un incidente. Solo coordinadores.
+    @PreAuthorize("hasRole('COORDINATOR')")
     @PutMapping("/{incidenteId}")
     public ResponseEntity<IncidenteResponse> editarIncidente(
             @PathVariable String eventoId,
@@ -61,6 +67,8 @@ public class IncidenteController {
         return ResponseEntity.ok(response);
     }
 
+    // Consultar incidentes. Requiere un usuario autenticado.
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/consulta")
     public ResponseEntity<Page<IncidenteResumenDTO>> consultarIncidentes(
             @PathVariable String eventoId,
@@ -93,6 +101,8 @@ public class IncidenteController {
         return ResponseEntity.ok(resultado);
     }
 
+    // Consultar el detalle de un incidente. Requiere autenticación.
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{incidenteId}")
     public ResponseEntity<IncidenteDetalleDTO> consultarDetalleIncidente(
             @PathVariable String eventoId,
@@ -113,6 +123,7 @@ public class IncidenteController {
      * Elimina logicamente un incidente resuelto.
      * Solo los coordinadores pueden realizar esta operación.
      */
+    @PreAuthorize("hasRole('COORDINATOR')")
     @DeleteMapping("/{incidenteId}")
     public ResponseEntity<Void> eliminarIncidente(
             @PathVariable String eventoId,

@@ -11,7 +11,10 @@ import edu.eci.dosw.brigades_and_incidents.exception.EvidenciaIncidenteException
 import edu.eci.dosw.brigades_and_incidents.repository.BrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EvidenciaIncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,6 +41,12 @@ public class EvidenciaIncidenteService {
             "ESTUDIANTE",
             "PROFESOR",
             "ADMINISTRATIVO",
+            "COORDINADOR",
+            "ORGANIZADOR",
+            "ADMIN"
+    );
+
+    private static final Set<String> ROLES_COORDINADOR = Set.of(
             "COORDINADOR",
             "ORGANIZADOR",
             "ADMIN"
@@ -78,7 +87,7 @@ public class EvidenciaIncidenteService {
             MultipartFile archivo,
             String usuarioId
     ) {
-        // 1. Validar que el usuario esté autenticado.
+        // 1. Validar la identidad del usuario.
         validarIdentidad(usuarioId);
 
         // 2. Buscar el incidente.
@@ -142,14 +151,38 @@ public class EvidenciaIncidenteService {
             String eventoId,
             UUID incidenteId
     ) {
-        // El incidente debe existir y pertenecer al evento.
-        buscarIncidente(eventoId, incidenteId);
+        // Obtener la identidad establecida por el filtro de seguridad.
+        String usuarioId = obtenerUsuarioAutenticado();
 
-        // Si no existen evidencias, se devuelve una lista vacía.
+        // Verificar que el incidente exista y pertenezca al evento.
+        Incidente incidente = buscarIncidente(eventoId, incidenteId);
+
+        // Verificar que el usuario tenga permiso de consulta.
+        validarPermisosConsulta(usuarioId);
+
         return evidenciaRepository.findByIncidenteId(incidenteId)
                 .stream()
                 .map(this::convertirRespuesta)
                 .toList();
+    }
+
+    private String obtenerUsuarioAutenticado() {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication.getName() == null
+                || authentication.getName().isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "No se pudo identificar al usuario autenticado."
+            );
+        }
+
+        return authentication.getName();
     }
 
     private void validarIdentidad(String usuarioId) {
@@ -201,29 +234,11 @@ public class EvidenciaIncidenteService {
         UsuarioClient.UsuarioExterno usuario =
                 usuarioClient.consultarUsuario(usuarioId);
 
-        if (usuario == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El usuario no existe en MS01."
-            );
-        }
+        validarUsuarioActivo(usuario);
 
-        if (usuario.estado() == null
-                || !ESTADO_ACTIVO.equalsIgnoreCase(usuario.estado())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El usuario se encuentra inactivo."
-            );
-        }
+        Set<String> roles = obtenerRoles(usuario);
 
-        Set<String> roles = usuario.roles() == null
-                ? Set.of()
-                : usuario.roles().stream()
-                        .filter(rol -> rol != null && !rol.isBlank())
-                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
-                        .collect(Collectors.toSet());
-
-        // Los auditores no pueden adjuntar evidencias.
+        // Los auditores no pueden cargar evidencias.
         if (roles.contains(ROL_AUDITOR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -242,7 +257,6 @@ public class EvidenciaIncidenteService {
 
         if (esPropietario) {
 
-            // El propietario debe tener un rol autorizado.
             if (!esUsuarioGeneral && !esBrigadista) {
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
@@ -252,7 +266,6 @@ public class EvidenciaIncidenteService {
 
         } else {
 
-            // Para incidentes ajenos se requiere ser brigadista activo.
             if (!esBrigadista) {
                 throw new ResponseStatusException(
                         HttpStatus.FORBIDDEN,
@@ -263,6 +276,69 @@ public class EvidenciaIncidenteService {
 
             validarBrigadistaActivo(usuarioId);
         }
+    }
+
+    private void validarPermisosConsulta(String usuarioId) {
+
+        UsuarioClient.UsuarioExterno usuario =
+                usuarioClient.consultarUsuario(usuarioId);
+
+        validarUsuarioActivo(usuario);
+
+        Set<String> roles = obtenerRoles(usuario);
+
+        // El auditor puede consultar evidencias.
+        if (roles.contains(ROL_AUDITOR)) {
+            return;
+        }
+
+        // El coordinador puede consultar evidencias.
+        if (roles.stream().anyMatch(ROLES_COORDINADOR::contains)) {
+            return;
+        }
+
+        // El brigadista debe estar registrado y activo.
+        if (roles.contains(ROL_BRIGADISTA)) {
+            validarBrigadistaActivo(usuarioId);
+            return;
+        }
+
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "No tiene permisos para consultar las evidencias del incidente."
+        );
+    }
+
+    private void validarUsuarioActivo(
+            UsuarioClient.UsuarioExterno usuario
+    ) {
+
+        if (usuario == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "El usuario no existe en MS01."
+            );
+        }
+
+        if (usuario.estado() == null
+                || !ESTADO_ACTIVO.equalsIgnoreCase(usuario.estado())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "El usuario se encuentra inactivo."
+            );
+        }
+    }
+
+    private Set<String> obtenerRoles(
+            UsuarioClient.UsuarioExterno usuario
+    ) {
+
+        return usuario.roles() == null
+                ? Set.of()
+                : usuario.roles().stream()
+                        .filter(rol -> rol != null && !rol.isBlank())
+                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toSet());
     }
 
     private void validarBrigadistaActivo(String usuarioId) {

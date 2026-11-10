@@ -1,10 +1,14 @@
+
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.ListadoResponsabilidadesResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.PanelResponsabilidadesResponse;
+import edu.eci.dosw.brigades_and_incidents.security.Roles;
 import edu.eci.dosw.brigades_and_incidents.service.ConsultaResponsabilidadesService;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -20,6 +24,8 @@ public class ResponsabilidadesController {
         this.service = service;
     }
 
+    // Consultar las responsabilidades propias del brigadista.
+    @PreAuthorize("hasRole('BRIGADISTA')")
     @GetMapping("/mias")
     public ResponseEntity<PanelResponsabilidadesResponse> consultarPanel(
             @RequestHeader("X-User-Id") String brigadistaId,
@@ -27,7 +33,7 @@ public class ResponsabilidadesController {
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "10") int tamano
     ) {
-        if (!"BRIGADISTA".equalsIgnoreCase(rol)) {
+        if (!Roles.BRIGADISTA.equalsIgnoreCase(rol)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "El panel de responsabilidades está disponible únicamente para brigadistas."
@@ -39,6 +45,8 @@ public class ResponsabilidadesController {
         );
     }
 
+    // Consultar el listado general de responsabilidades.
+    @PreAuthorize("hasAnyRole('COORDINATOR', 'AUDITOR')")
     @GetMapping
     public ResponseEntity<ListadoResponsabilidadesResponse> consultarListadoGeneral(
             @RequestHeader("X-User-Role") String rol,
@@ -68,9 +76,8 @@ public class ResponsabilidadesController {
     private void validarRolConsultaGeneral(String rol) {
 
         boolean autorizado =
-                "COORDINATOR".equalsIgnoreCase(rol)
-                        || "ORGANIZER".equalsIgnoreCase(rol)
-                        || "AUDITOR".equalsIgnoreCase(rol);
+                Roles.COORDINATOR.equalsIgnoreCase(rol)
+                        || Roles.AUDITOR.equalsIgnoreCase(rol);
 
         if (!autorizado) {
             throw new ResponseStatusException(

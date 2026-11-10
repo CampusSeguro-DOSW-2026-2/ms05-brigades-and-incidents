@@ -1,26 +1,19 @@
+
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.BusquedaBrigadistasResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.CambiarEstadoBrigadistaRequest;
+import edu.eci.dosw.brigades_and_incidents.security.Roles;
 import edu.eci.dosw.brigades_and_incidents.service.BuscarBrigadistaService;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.Locale;
-import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/brigadistas")
 public class BuscarBrigadistaController {
-
-    private static final Set<String> ROLES_AUTORIZADOS = Set.of(
-            "COORDINATOR",
-            "ORGANIZER",
-            "EVENT_ORGANIZER",
-            "COORDINADOR_EMERGENCIA",
-            "ORGANIZADOR"
-    );
 
     private final BuscarBrigadistaService buscarBrigadistaService;
 
@@ -30,6 +23,7 @@ public class BuscarBrigadistaController {
         this.buscarBrigadistaService = buscarBrigadistaService;
     }
 
+    @PreAuthorize("hasRole('COORDINATOR')")
     @GetMapping("/buscar")
     public BusquedaBrigadistasResponse buscarBrigadistas(
             @RequestHeader("X-User-Id") String usuarioId,
@@ -43,6 +37,7 @@ public class BuscarBrigadistaController {
         );
     }
 
+    @PreAuthorize("hasRole('COORDINATOR')")
     @PatchMapping("/{brigadistaId}/estado")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cambiarEstado(
@@ -71,11 +66,7 @@ public class BuscarBrigadistaController {
             );
         }
 
-        String rolNormalizado = rolUsuario
-                .trim()
-                .toUpperCase(Locale.ROOT);
-
-        if (!ROLES_AUTORIZADOS.contains(rolNormalizado)) {
+        if (!Roles.COORDINATOR.equalsIgnoreCase(rolUsuario.trim())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "No tiene permisos para realizar esta operación"

@@ -1,8 +1,11 @@
+
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.RegistroAuditoriaResponse;
 import edu.eci.dosw.brigades_and_incidents.entity.RegistroAuditoria;
 import edu.eci.dosw.brigades_and_incidents.service.RegistroAuditoriaService;
+
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +24,9 @@ public class RegistroAuditoriaController {
 
     /**
      * Consulta los registros de auditoria asociados a un evento.
+     * Solo los auditores pueden realizar esta consulta.
      */
+    @PreAuthorize("hasRole('AUDITOR')")
     @GetMapping("/eventos/{eventoId}")
     public List<RegistroAuditoriaResponse> consultarPorEvento(
             @PathVariable String eventoId
@@ -34,7 +39,9 @@ public class RegistroAuditoriaController {
 
     /**
      * Consulta los registros de auditoria asociados a un recurso.
+     * Solo los auditores pueden realizar esta consulta.
      */
+    @PreAuthorize("hasRole('AUDITOR')")
     @GetMapping("/recursos/{recursoTipo}/{recursoId}")
     public List<RegistroAuditoriaResponse> consultarPorRecurso(
             @PathVariable String recursoTipo,
@@ -51,7 +58,9 @@ public class RegistroAuditoriaController {
 
     /**
      * Consulta todos los registros de auditoria.
+     * Solo los auditores pueden realizar esta consulta.
      */
+    @PreAuthorize("hasRole('AUDITOR')")
     @GetMapping
     public List<RegistroAuditoriaResponse> consultarTodos() {
         return auditoriaService.consultarTodos()

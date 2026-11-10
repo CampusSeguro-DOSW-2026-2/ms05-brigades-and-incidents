@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.entity;
 
 import jakarta.persistence.*;
@@ -41,6 +42,25 @@ public class Incidente {
 
     @Column(nullable = false)
     private OffsetDateTime fechaReporte;
+
+    @Column(name = "brigadista_responsable_id", length = 100)
+    private String brigadistaResponsableId;
+
+    @Column(name = "fecha_primera_atencion")
+    private OffsetDateTime fechaPrimeraAtencion;
+
+    @Column(name = "fecha_resolucion")
+    private OffsetDateTime fechaResolucion;
+
+    @Column(name = "fecha_cierre")
+    private OffsetDateTime fechaCierre;
+
+    @Column(name = "observaciones_resolucion", length = 1000)
+    private String observacionesResolucion;
+
+    // Indica si el incidente fue eliminado logicamente.
+    @Column(nullable = false)
+    private boolean eliminado = false;
 
     public Incidente() {
     }
@@ -123,6 +143,54 @@ public class Incidente {
 
     public void setFechaReporte(OffsetDateTime fechaReporte) {
         this.fechaReporte = fechaReporte;
+    }
+
+    public String getBrigadistaResponsableId() {
+        return brigadistaResponsableId;
+    }
+
+    public void setBrigadistaResponsableId(String brigadistaResponsableId) {
+        this.brigadistaResponsableId = brigadistaResponsableId;
+    }
+
+    public OffsetDateTime getFechaPrimeraAtencion() {
+        return fechaPrimeraAtencion;
+    }
+
+    public void setFechaPrimeraAtencion(OffsetDateTime fechaPrimeraAtencion) {
+        this.fechaPrimeraAtencion = fechaPrimeraAtencion;
+    }
+
+    public OffsetDateTime getFechaResolucion() {
+        return fechaResolucion;
+    }
+
+    public void setFechaResolucion(OffsetDateTime fechaResolucion) {
+        this.fechaResolucion = fechaResolucion;
+    }
+
+    public OffsetDateTime getFechaCierre() {
+        return fechaCierre;
+    }
+
+    public void setFechaCierre(OffsetDateTime fechaCierre) {
+        this.fechaCierre = fechaCierre;
+    }
+
+    public String getObservacionesResolucion() {
+        return observacionesResolucion;
+    }
+
+    public void setObservacionesResolucion(String observacionesResolucion) {
+        this.observacionesResolucion = observacionesResolucion;
+    }
+
+    public boolean isEliminado() {
+        return eliminado;
+    }
+
+    public void setEliminado(boolean eliminado) {
+        this.eliminado = eliminado;
     }
 
     @PrePersist

@@ -2,15 +2,20 @@
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
-import edu.eci.dosw.brigades_and_incidents.entity.Incidente;
+import edu.eci.dosw.brigades_and_incidents.entity.Brigadista;
+import edu.eci.dosw.brigades_and_incidents.entity.EstadoIncidente;
 import edu.eci.dosw.brigades_and_incidents.entity.EvidenciaIncidente;
+import edu.eci.dosw.brigades_and_incidents.entity.Incidente;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.exception.EvidenciaIncidenteException;
+import edu.eci.dosw.brigades_and_incidents.repository.BrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EvidenciaIncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +35,7 @@ class EvidenciaIncidenteServiceTest {
 
     private EvidenciaIncidenteRepository evidenciaRepository;
     private IncidenteRepository incidenteRepository;
+    private BrigadistaRepository brigadistaRepository;
     private EvidenciaStorage evidenciaStorage;
     private IncidenteAuditPublisher auditPublisher;
     private UsuarioClient usuarioClient;
@@ -43,6 +49,7 @@ class EvidenciaIncidenteServiceTest {
 
         evidenciaRepository = mock(EvidenciaIncidenteRepository.class);
         incidenteRepository = mock(IncidenteRepository.class);
+        brigadistaRepository = mock(BrigadistaRepository.class);
         evidenciaStorage = mock(EvidenciaStorage.class);
         auditPublisher = mock(IncidenteAuditPublisher.class);
         usuarioClient = mock(UsuarioClient.class);
@@ -50,6 +57,7 @@ class EvidenciaIncidenteServiceTest {
         evidenciaService = new EvidenciaIncidenteService(
                 evidenciaRepository,
                 incidenteRepository,
+                brigadistaRepository,
                 evidenciaStorage,
                 auditPublisher,
                 usuarioClient
@@ -58,6 +66,11 @@ class EvidenciaIncidenteServiceTest {
         incidente = new Incidente();
         incidente.setId(INCIDENTE_ID);
         incidente.setEventoId(EVENTO_ID);
+        incidente.setReportanteId(USUARIO_ID);
+        incidente.setEstado(new EstadoIncidente(
+                "ABIERTO",
+                "Incidente abierto"
+        ));
 
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(new UsuarioClient.UsuarioExterno(
@@ -243,5 +256,70 @@ class EvidenciaIncidenteServiceTest {
         );
 
         verify(evidenciaStorage, never()).guardar(any());
+    }
+
+    @Test
+    void rechazaEvidenciaEnIncidenteCerrado() {
+
+        incidente.setEstado(new EstadoIncidente(
+                "CERRADO",
+                "Incidente cerrado"
+        ));
+
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo",
+                "evidencia.png",
+                "image/png",
+                new byte[]{1, 2, 3}
+        );
+
+        ResponseStatusException excepcion = assertThrows(
+                ResponseStatusException.class,
+                () -> evidenciaService.cargarEvidencia(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        archivo,
+                        USUARIO_ID
+                )
+        );
+
+        assertEquals(
+                HttpStatus.CONFLICT,
+                excepcion.getStatusCode()
+        );
+
+        verify(evidenciaStorage, never()).guardar(any());
+        verify(evidenciaRepository, never()).save(any());
+    }
+
+    @Test
+    void rechazaUsuarioGeneralQueIntentaEditarIncidenteAjeno() {
+
+        incidente.setReportanteId("OTRO-USUARIO");
+
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo",
+                "evidencia.png",
+                "image/png",
+                new byte[]{1, 2, 3}
+        );
+
+        ResponseStatusException excepcion = assertThrows(
+                ResponseStatusException.class,
+                () -> evidenciaService.cargarEvidencia(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        archivo,
+                        USUARIO_ID
+                )
+        );
+
+        assertEquals(
+                HttpStatus.FORBIDDEN,
+                excepcion.getStatusCode()
+        );
+
+        verify(evidenciaStorage, never()).guardar(any());
+        verify(evidenciaRepository, never()).save(any());
     }
 }

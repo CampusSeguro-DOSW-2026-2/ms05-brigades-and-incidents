@@ -4,6 +4,7 @@ package edu.eci.dosw.brigades_and_incidents.service;
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
+import edu.eci.dosw.brigades_and_incidents.dto.EditarIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
@@ -17,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +37,7 @@ public class IncidenteService {
     private static final String ROL_AUDITOR = "AUDITOR";
 
     private final IncidenteRepository incidenteRepository;
+    private final HistorialIncidenteRepository historialRepository;
     private final PrioridadIncidenteRepository prioridadRepository;
     private final EstadoIncidenteRepository estadoRepository;
     private final TipoUbicacionRepository tipoUbicacionRepository;
@@ -48,6 +51,7 @@ public class IncidenteService {
 
     public IncidenteService(
             IncidenteRepository incidenteRepository,
+            HistorialIncidenteRepository historialRepository,
             PrioridadIncidenteRepository prioridadRepository,
             EstadoIncidenteRepository estadoRepository,
             TipoUbicacionRepository tipoUbicacionRepository,
@@ -60,6 +64,7 @@ public class IncidenteService {
             IncidenteAuditPublisher auditPublisher
     ) {
         this.incidenteRepository = incidenteRepository;
+        this.historialRepository = historialRepository;
         this.prioridadRepository = prioridadRepository;
         this.estadoRepository = estadoRepository;
         this.tipoUbicacionRepository = tipoUbicacionRepository;
@@ -136,14 +141,16 @@ public class IncidenteService {
                         )
                 );
 
-        boolean hayBrigadista = hayBrigadistaActivoAsignado(
+        // Buscar un brigadista activo y asignado a esta ubicación.
+        String responsableId = seleccionarBrigadistaResponsable(
                 eventoId,
                 ubicacion.id(),
                 ubicacion.tipo()
         );
 
+        // El estado inicial depende de si se encontró un responsable.
         EstadoIncidente estado = estadoRepository
-                .findByNombre(hayBrigadista ? "ASIGNADO" : "REPORTADO")
+                .findByNombre(responsableId != null ? "ASIGNADO" : "REPORTADO")
                 .orElseThrow(() ->
                         new IllegalStateException(
                                 "No se encuentra el estado inicial del incidente."
@@ -159,9 +166,18 @@ public class IncidenteService {
         incidente.setPrioridad(prioridad);
         incidente.setEstado(estado);
         incidente.setDescripcion(request.descripcion());
+        incidente.setBrigadistaResponsableId(responsableId);
 
         Incidente incidenteGuardado =
                 incidenteRepository.save(incidente);
+
+        // Registrar el estado inicial en el historial.
+        registrarHistorialInicial(
+                incidenteGuardado,
+                estado,
+                responsableId,
+                reportanteId
+        );
 
         IncidenteResponse response =
                 incidenteMapper.toResponse(incidenteGuardado);
@@ -173,14 +189,144 @@ public class IncidenteService {
                 eventoId,
                 reportanteId,
                 "EXITOSO",
-                "Se registró un incidente."
+                responsableId != null
+                        ? "Se registró el incidente y se asignó automáticamente un brigadista responsable."
+                        : "Se registró el incidente sin brigadista responsable disponible."
         );
 
         return response;
     }
 
-    private void validarIdentidad(String reportanteId) {
-        if (reportanteId == null || reportanteId.isBlank()) {
+    /**
+     * Registra el estado con el que se creó el incidente.
+     */
+    private void registrarHistorialInicial(
+            Incidente incidente,
+            EstadoIncidente estadoInicial,
+            String responsableId,
+            String actorId
+    ) {
+        HistorialIncidente historial = new HistorialIncidente();
+
+        historial.setIncidente(incidente);
+        historial.setEstadoAnterior(null);
+        historial.setEstadoNuevo(estadoInicial);
+        historial.setResponsableAnteriorId(null);
+        historial.setResponsableNuevoId(responsableId);
+        historial.setActorId(actorId);
+        historial.setObservaciones(
+                "Registro inicial del incidente."
+        );
+
+        historialRepository.save(historial);
+    }
+
+    /**
+     * Edita la descripción de un incidente existente.
+     * El propietario puede editar su incidente y un brigadista activo
+     * puede editar incidentes reportados por otros usuarios.
+     */
+    @Transactional
+    public IncidenteResponse editarIncidente(
+            String eventoId,
+            UUID incidenteId,
+            EditarIncidenteRequest request,
+            String usuarioId
+    ) {
+        validarIdentidad(usuarioId);
+
+        Incidente incidente = incidenteRepository.findById(incidenteId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "El incidente no existe."
+                ));
+
+        if (!incidente.getEventoId().equals(eventoId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "El incidente no pertenece al evento indicado."
+            );
+        }
+
+        if (incidente.getEstado() == null
+                || "CERRADO".equalsIgnoreCase(
+                        incidente.getEstado().getNombre()
+                )) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede editar un incidente cerrado."
+            );
+        }
+
+        UsuarioClient.UsuarioExterno usuario =
+                usuarioClient.consultarUsuario(usuarioId);
+
+        validarUsuarioExistenteYActivo(usuario);
+
+        Set<String> roles = usuario.roles() == null
+                ? Set.of()
+                : usuario.roles().stream()
+                        .filter(rol -> rol != null && !rol.isBlank())
+                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toSet());
+
+        if (roles.contains(ROL_AUDITOR)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Los usuarios con rol auditor no pueden editar incidentes."
+            );
+        }
+
+        boolean esPropietario =
+                incidente.getReportanteId().equals(usuarioId);
+
+        boolean esUsuarioGeneral = roles.stream()
+                .anyMatch(ROLES_USUARIO_GENERAL::contains);
+
+        boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
+
+        if (esPropietario) {
+
+            if (!esUsuarioGeneral && !esBrigadista) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "El usuario no tiene permisos para editar este incidente."
+                );
+            }
+
+        } else {
+
+            if (!esBrigadista) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Solo un brigadista activo puede editar incidentes de otros usuarios."
+                );
+            }
+
+            validarBrigadistaActivo(usuarioId);
+        }
+
+        if (request != null && request.descripcion() != null) {
+            incidente.setDescripcion(request.descripcion().trim());
+        }
+
+        Incidente actualizado = incidenteRepository.save(incidente);
+
+        auditPublisher.publicar(
+                "EDITAR_INCIDENTE",
+                "INCIDENTE",
+                actualizado.getId().toString(),
+                eventoId,
+                usuarioId,
+                "EXITOSO",
+                "Se actualizó la descripción del incidente."
+        );
+
+        return incidenteMapper.toResponse(actualizado);
+    }
+
+    private void validarIdentidad(String usuarioId) {
+        if (usuarioId == null || usuarioId.isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "No se pudo identificar al usuario autenticado."
@@ -264,9 +410,9 @@ public class IncidenteService {
         return ubicacion;
     }
 
-    private void validarBrigadistaActivo(String reportanteId) {
+    private void validarBrigadistaActivo(String usuarioId) {
         Brigadista brigadista = brigadistaRepository
-                .findByUsuarioIdExterno(reportanteId)
+                .findByUsuarioIdExterno(usuarioId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.FORBIDDEN,
@@ -280,39 +426,79 @@ public class IncidenteService {
                 )) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "El brigadista debe estar activo para registrar incidentes en nombre de otra persona."
+                    "El brigadista debe estar activo para realizar esta operación."
             );
         }
     }
 
-    private boolean hayBrigadistaActivoAsignado(
+    /**
+     * Busca un brigadista con asignación vigente para el evento y ubicación.
+     * Comprueba que esté activo en MS05 y que MS01 confirme su rol y estado.
+     *
+     * @return identificador externo del brigadista o null si no hay uno válido.
+     */
+    private String seleccionarBrigadistaResponsable(
             String eventoId,
             String ubicacionId,
             String tipoUbicacion
     ) {
-        return asignacionRepository
-                .findByEventoIdAndEstado_Nombre(eventoId, "VIGENTE")
-                .stream()
-                .filter(asignacion ->
-                        ubicacionId.equals(asignacion.getUbicacionId())
-                )
-                .filter(asignacion ->
-                        tipoUbicacion.equals(
-                                asignacion.getTipoUbicacion().getNombre()
-                        )
-                )
-                .anyMatch(asignacion ->
-                        brigadistaRepository
-                                .findByUsuarioIdExterno(
-                                        asignacion.getBrigadistaId()
-                                )
-                                .map(brigadista ->
-                                        brigadista.getEstado() != null
-                                        && "ACTIVO".equalsIgnoreCase(
-                                                brigadista.getEstado().getNombre()
-                                        )
-                                )
-                                .orElse(false)
-                );
+        var asignaciones = asignacionRepository
+                .findByEventoIdAndEstado_Nombre(eventoId, "VIGENTE");
+
+        for (AsignacionBrigadista asignacion : asignaciones) {
+
+            if (asignacion.getUbicacionId() == null
+                    || !ubicacionId.equals(asignacion.getUbicacionId())) {
+                continue;
+            }
+
+            if (asignacion.getTipoUbicacion() == null
+                    || asignacion.getTipoUbicacion().getNombre() == null
+                    || !tipoUbicacion.equalsIgnoreCase(
+                            asignacion.getTipoUbicacion().getNombre()
+                    )) {
+                continue;
+            }
+
+            String brigadistaId = asignacion.getBrigadistaId();
+
+            if (brigadistaId == null || brigadistaId.isBlank()) {
+                continue;
+            }
+
+            Brigadista brigadista = brigadistaRepository
+                    .findByUsuarioIdExterno(brigadistaId)
+                    .orElse(null);
+
+            if (brigadista == null
+                    || brigadista.getEstado() == null
+                    || !"ACTIVO".equalsIgnoreCase(
+                            brigadista.getEstado().getNombre()
+                    )) {
+                continue;
+            }
+
+            UsuarioClient.UsuarioExterno usuario =
+                    usuarioClient.consultarUsuario(brigadistaId);
+
+            if (usuario == null
+                    || usuario.estado() == null
+                    || !"ACTIVO".equalsIgnoreCase(usuario.estado())) {
+                continue;
+            }
+
+            Set<String> roles = usuario.roles() == null
+                    ? Set.of()
+                    : usuario.roles().stream()
+                            .filter(rol -> rol != null && !rol.isBlank())
+                            .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
+                            .collect(Collectors.toSet());
+
+            if (roles.contains(ROL_BRIGADISTA)) {
+                return brigadistaId;
+            }
+        }
+
+        return null;
     }
 }

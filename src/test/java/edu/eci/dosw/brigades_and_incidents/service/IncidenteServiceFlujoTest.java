@@ -25,6 +25,7 @@ import static org.mockito.Mockito.*;
 class IncidenteServiceFlujoTest {
 
     private IncidenteRepository incidenteRepository;
+    private HistorialIncidenteRepository historialRepository;
     private PrioridadIncidenteRepository prioridadRepository;
     private EstadoIncidenteRepository estadoRepository;
     private TipoUbicacionRepository tipoUbicacionRepository;
@@ -56,6 +57,7 @@ class IncidenteServiceFlujoTest {
     void setUp() {
 
         incidenteRepository = mock(IncidenteRepository.class);
+        historialRepository = mock(HistorialIncidenteRepository.class);
         prioridadRepository = mock(PrioridadIncidenteRepository.class);
         estadoRepository = mock(EstadoIncidenteRepository.class);
         tipoUbicacionRepository = mock(TipoUbicacionRepository.class);
@@ -69,6 +71,7 @@ class IncidenteServiceFlujoTest {
 
         incidenteService = new IncidenteService(
                 incidenteRepository,
+                historialRepository,
                 prioridadRepository,
                 estadoRepository,
                 tipoUbicacionRepository,
@@ -170,7 +173,6 @@ class IncidenteServiceFlujoTest {
         verify(incidenteRepository).save(any(Incidente.class));
         verify(incidenteMapper).toResponse(any(Incidente.class));
 
-        // Verifica que se publique el evento de auditoría.
         verify(auditPublisher).publicar(
                 eq("CREAR_INCIDENTE"),
                 eq("INCIDENTE"),
@@ -412,7 +414,6 @@ class IncidenteServiceFlujoTest {
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(usuario);
 
-        // Se crea una asignación vigente para el edificio del incidente.
         AsignacionBrigadista asignacion = mock(
                 AsignacionBrigadista.class,
                 RETURNS_DEEP_STUBS
@@ -431,7 +432,6 @@ class IncidenteServiceFlujoTest {
                 "VIGENTE"
         )).thenReturn(List.of(asignacion));
 
-        // El brigadista asociado a la asignación está activo.
         Brigadista brigadistaActivo = mock(
                 Brigadista.class,
                 RETURNS_DEEP_STUBS
@@ -442,6 +442,15 @@ class IncidenteServiceFlujoTest {
 
         when(brigadistaRepository.findByUsuarioIdExterno(BRIGADISTA_ID))
                 .thenReturn(Optional.of(brigadistaActivo));
+
+        // Validación del brigadista en MS01.
+        when(usuarioClient.consultarUsuario(BRIGADISTA_ID))
+                .thenReturn(new UsuarioClient.UsuarioExterno(
+                        BRIGADISTA_ID,
+                        "Paula Novoa",
+                        List.of("BRIGADISTA"),
+                        "ACTIVO"
+                ));
 
         when(incidenteMapper.toResponse(any(Incidente.class)))
                 .thenReturn(mock(IncidenteResponse.class));
@@ -456,16 +465,25 @@ class IncidenteServiceFlujoTest {
 
         assertNotNull(incidenteGuardado.getId());
 
-        // Si existe un brigadista activo asignado, el estado debe ser ASIGNADO.
         assertSame(
                 estadoAsignado,
                 incidenteGuardado.getEstado()
+        );
+
+        assertEquals(
+                BRIGADISTA_ID,
+                incidenteGuardado.getBrigadistaResponsableId()
         );
 
         verify(estadoRepository).findByNombre("ASIGNADO");
 
         verify(brigadistaRepository)
                 .findByUsuarioIdExterno(BRIGADISTA_ID);
+
+        verify(usuarioClient)
+                .consultarUsuario(BRIGADISTA_ID);
+
+        verify(historialRepository).save(any(HistorialIncidente.class));
     }
 
     private CrearIncidenteRequest crearRequestPropio() {

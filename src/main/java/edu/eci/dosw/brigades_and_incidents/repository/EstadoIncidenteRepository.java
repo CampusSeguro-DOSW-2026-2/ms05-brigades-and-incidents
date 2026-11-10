@@ -9,4 +9,6 @@ public interface EstadoIncidenteRepository
         extends JpaRepository<EstadoIncidente, Long> {
 
     Optional<EstadoIncidente> findByNombre(String nombre);
+
+    Optional<EstadoIncidente> findByNombreIgnoreCase(String nombre);
 }

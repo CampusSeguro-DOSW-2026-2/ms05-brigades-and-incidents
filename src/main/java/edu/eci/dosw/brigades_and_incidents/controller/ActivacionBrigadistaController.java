@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.ActivacionBrigadistaResponse;
@@ -7,6 +8,7 @@ import edu.eci.dosw.brigades_and_incidents.service.ActivarBrigadistaService;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,6 +23,8 @@ public class ActivacionBrigadistaController {
         this.activarBrigadistaService = activarBrigadistaService;
     }
 
+    // Cambiar el estado de un brigadista. Solo coordinadores.
+    @PreAuthorize("hasRole('COORDINATOR')")
     @PutMapping("/{brigadistaId}/estado")
     public ResponseEntity<ActivacionBrigadistaResponse> cambiarEstado(
             @PathVariable String brigadistaId,

@@ -2,6 +2,7 @@
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
+import edu.eci.dosw.brigades_and_incidents.dto.AsignarResponsableRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -17,6 +20,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,7 +54,9 @@ class GestionAtencionIncidenteServiceTest {
 
     private static final String EVENTO_ID = "EVENTO-001";
     private static final String BRIGADISTA_ID = "BRIGADISTA-001";
+    private static final String NUEVO_BRIGADISTA_ID = "BRIGADISTA-002";
     private static final String UBICACION_ID = "EDIF-001";
+    private static final String COORDINADOR_ID = "COORDINADOR-001";
 
     @BeforeEach
     void configurar() {
@@ -64,6 +70,10 @@ class GestionAtencionIncidenteServiceTest {
                 auditPublisher
         );
     }
+
+    // --------------------------------------------------
+    // MÉTODOS AUXILIARES
+    // --------------------------------------------------
 
     private Incidente crearIncidente() {
         Incidente incidente = mock(Incidente.class);
@@ -120,6 +130,67 @@ class GestionAtencionIncidenteServiceTest {
                 "Usuario de prueba",
                 roles,
                 "ACTIVO"
+        );
+    }
+
+    private void prepararCoordinador(String actorId, String rol) {
+        when(usuarioClient.consultarUsuario(actorId))
+                .thenReturn(crearUsuario(actorId, List.of(rol)));
+    }
+
+    private void prepararBrigadistaValido(
+            String responsableId,
+            Incidente incidente
+    ) {
+        Brigadista brigadista = mock(Brigadista.class);
+        EstadoBrigadista estadoBrigadista =
+                mock(EstadoBrigadista.class);
+        AsignacionBrigadista asignacion =
+                mock(AsignacionBrigadista.class);
+
+        // Se obtiene el tipo antes de iniciar el stubbing de Mockito.
+        TipoUbicacion tipoUbicacion = incidente.getTipoUbicacion();
+
+        when(usuarioClient.consultarUsuario(responsableId))
+                .thenReturn(crearUsuario(
+                        responsableId,
+                        List.of("BRIGADISTA")
+                ));
+
+        when(brigadistaRepository.findByUsuarioIdExterno(responsableId))
+                .thenReturn(Optional.of(brigadista));
+
+        when(brigadista.getEstado()).thenReturn(estadoBrigadista);
+        when(estadoBrigadista.getNombre()).thenReturn("ACTIVO");
+
+        when(asignacionRepository
+                .findByEventoIdAndEstado_Nombre(EVENTO_ID, "VIGENTE"))
+                .thenReturn(List.of(asignacion));
+
+        when(asignacion.getBrigadistaId()).thenReturn(responsableId);
+        when(asignacion.getUbicacionId()).thenReturn(UBICACION_ID);
+        when(asignacion.getTipoUbicacion()).thenReturn(tipoUbicacion);
+    }
+
+    private void prepararGuardadoHistorial() {
+        when(historialRepository.save(any(HistorialIncidente.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private ResponseStatusException ejecutarAsignacionConError(
+            String eventoId,
+            UUID incidenteId,
+            AsignarResponsableRequest request,
+            String actorId
+    ) {
+        return assertThrows(
+                ResponseStatusException.class,
+                () -> service.asignarResponsable(
+                        eventoId,
+                        incidenteId,
+                        request,
+                        actorId
+                )
         );
     }
 
@@ -199,7 +270,7 @@ class GestionAtencionIncidenteServiceTest {
     }
 
     // --------------------------------------------------
-    // ACCESO DE BRIGADISTAS
+    // ACCESO DE BRIGADISTAS AL HISTORIAL
     // --------------------------------------------------
 
     @Test
@@ -298,5 +369,446 @@ class GestionAtencionIncidenteServiceTest {
 
         assertEquals(1, resultado.size());
         assertEquals(fechaCambio, resultado.get(0).fechaCambio());
+    }
+
+    // --------------------------------------------------
+    // ASIGNACIÓN DE RESPONSABLE
+    // --------------------------------------------------
+
+    @Test
+    void coordinadorPuedeAsignarResponsable() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+        prepararBrigadistaValido(NUEVO_BRIGADISTA_ID, incidente);
+        prepararGuardadoHistorial();
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        when(incidenteRepository.save(incidente))
+                .thenReturn(incidente);
+
+        var resultado = service.asignarResponsable(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                new AsignarResponsableRequest(
+                        NUEVO_BRIGADISTA_ID,
+                        "Asignación inicial"
+                ),
+                COORDINADOR_ID
+        );
+
+        assertNotNull(resultado);
+        verify(incidente).setBrigadistaResponsableId(NUEVO_BRIGADISTA_ID);
+        verify(incidenteRepository).save(incidente);
+        verify(historialRepository).save(any(HistorialIncidente.class));
+        verify(auditPublisher).publicar(
+                eq("ASIGNAR_RESPONSABLE"),
+                eq("INCIDENTE"),
+                eq(INCIDENTE_ID.toString()),
+                eq(EVENTO_ID),
+                eq(COORDINADOR_ID),
+                eq("EXITOSO"),
+                anyString()
+        );
+    }
+
+    @Test
+    void organizadorPuedeAsignarResponsable() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador("ORGANIZADOR-001", "ORGANIZADOR");
+        prepararBrigadistaValido(NUEVO_BRIGADISTA_ID, incidente);
+        prepararGuardadoHistorial();
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        when(incidenteRepository.save(incidente))
+                .thenReturn(incidente);
+
+        var resultado = service.asignarResponsable(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                new AsignarResponsableRequest(
+                        NUEVO_BRIGADISTA_ID,
+                        "Asignación por organizador"
+                ),
+                "ORGANIZADOR-001"
+        );
+
+        assertNotNull(resultado);
+        verify(incidenteRepository).save(incidente);
+    }
+
+    @Test
+    void administradorPuedeAsignarResponsable() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador("ADMIN-001", "ADMIN");
+        prepararBrigadistaValido(NUEVO_BRIGADISTA_ID, incidente);
+        prepararGuardadoHistorial();
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        when(incidenteRepository.save(incidente))
+                .thenReturn(incidente);
+
+        var resultado = service.asignarResponsable(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                new AsignarResponsableRequest(
+                        NUEVO_BRIGADISTA_ID,
+                        "Asignación por administrador"
+                ),
+                "ADMIN-001"
+        );
+
+        assertNotNull(resultado);
+        verify(incidenteRepository).save(incidente);
+    }
+
+    @Test
+    void noDebeAsignarResponsableSinIdentidad() {
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        null
+                );
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        verifyNoInteractions(usuarioClient);
+        verifyNoInteractions(incidenteRepository);
+    }
+
+    @Test
+    void noDebeAsignarResponsableCuandoActorNoEsCoordinador() {
+        prepararCoordinador("AUDITOR-001", "AUDITOR");
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        "AUDITOR-001"
+                );
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verifyNoInteractions(incidenteRepository);
+    }
+
+    @Test
+    void noDebeAsignarResponsableConSolicitudNula() {
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        null,
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verifyNoInteractions(incidenteRepository);
+    }
+
+    @Test
+    void noDebeAsignarResponsableConIdentificadorVacio() {
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(" ", "Observación"),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verifyNoInteractions(incidenteRepository);
+    }
+
+    @Test
+    void noDebeAsignarResponsableSiIncidenteNoExiste() {
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+    }
+
+    @Test
+    void noDebeAsignarResponsableSiIncidentePerteneceAOtroEvento() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        "EVENTO-OTRO",
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+    }
+
+    @Test
+    void noDebeReasignarIncidenteResuelto() {
+        Incidente incidente = crearIncidente();
+        EstadoIncidente estado = mock(EstadoIncidente.class);
+
+        when(incidente.getEstado()).thenReturn(estado);
+        when(estado.getNombre()).thenReturn("RESUELTO");
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verifyNoInteractions(brigadistaRepository);
+    }
+
+    @Test
+    void noDebeReasignarIncidenteCerrado() {
+        Incidente incidente = crearIncidente();
+        EstadoIncidente estado = mock(EstadoIncidente.class);
+
+        when(incidente.getEstado()).thenReturn(estado);
+        when(estado.getNombre()).thenReturn("CERRADO");
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verifyNoInteractions(brigadistaRepository);
+    }
+
+    @Test
+    void noDebeAsignarUsuarioQueNoEsBrigadista() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(usuarioClient.consultarUsuario(NUEVO_BRIGADISTA_ID))
+                .thenReturn(crearUsuario(
+                        NUEVO_BRIGADISTA_ID,
+                        List.of("ESTUDIANTE")
+                ));
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verifyNoInteractions(asignacionRepository);
+    }
+
+    @Test
+    void noDebeAsignarUsuarioQueNoEstaRegistradoComoBrigadista() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(usuarioClient.consultarUsuario(NUEVO_BRIGADISTA_ID))
+                .thenReturn(crearUsuario(
+                        NUEVO_BRIGADISTA_ID,
+                        List.of("BRIGADISTA")
+                ));
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        when(brigadistaRepository
+                .findByUsuarioIdExterno(NUEVO_BRIGADISTA_ID))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+    }
+
+    @Test
+    void noDebeAsignarBrigadistaInactivo() {
+        Incidente incidente = crearIncidente();
+
+        Brigadista brigadista = mock(Brigadista.class);
+        EstadoBrigadista estadoBrigadista =
+                mock(EstadoBrigadista.class);
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(usuarioClient.consultarUsuario(NUEVO_BRIGADISTA_ID))
+                .thenReturn(crearUsuario(
+                        NUEVO_BRIGADISTA_ID,
+                        List.of("BRIGADISTA")
+                ));
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        when(brigadistaRepository
+                .findByUsuarioIdExterno(NUEVO_BRIGADISTA_ID))
+                .thenReturn(Optional.of(brigadista));
+
+        when(brigadista.getEstado()).thenReturn(estadoBrigadista);
+        when(estadoBrigadista.getNombre()).thenReturn("INACTIVO");
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verifyNoInteractions(asignacionRepository);
+    }
+
+    @Test
+    void noDebeAsignarBrigadistaSinAsignacionVigente() {
+        Incidente incidente = crearIncidente();
+
+        Brigadista brigadista = mock(Brigadista.class);
+        EstadoBrigadista estadoBrigadista =
+                mock(EstadoBrigadista.class);
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+
+        when(usuarioClient.consultarUsuario(NUEVO_BRIGADISTA_ID))
+                .thenReturn(crearUsuario(
+                        NUEVO_BRIGADISTA_ID,
+                        List.of("BRIGADISTA")
+                ));
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        when(brigadistaRepository
+                .findByUsuarioIdExterno(NUEVO_BRIGADISTA_ID))
+                .thenReturn(Optional.of(brigadista));
+
+        when(brigadista.getEstado()).thenReturn(estadoBrigadista);
+        when(estadoBrigadista.getNombre()).thenReturn("ACTIVO");
+
+        when(asignacionRepository
+                .findByEventoIdAndEstado_Nombre(EVENTO_ID, "VIGENTE"))
+                .thenReturn(List.of());
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+    }
+
+    @Test
+    void noDebeAsignarAlMismoResponsableActual() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+        prepararBrigadistaValido(BRIGADISTA_ID, incidente);
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                BRIGADISTA_ID,
+                                "Observación"
+                        ),
+                        COORDINADOR_ID
+                );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verify(incidenteRepository, never()).save(any());
     }
 }

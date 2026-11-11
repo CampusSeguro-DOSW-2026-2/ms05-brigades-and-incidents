@@ -9,6 +9,7 @@ import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.EditarIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.service.ConsultaIncidentesService;
 import edu.eci.dosw.brigades_and_incidents.service.IncidenteService;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import jakarta.validation.Valid;
 
@@ -21,6 +22,10 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/eventos/{eventoId}/incidentes")
+@SuppressFBWarnings(
+        value = "EI_EXPOSE_REP2",
+        justification = "Los servicios son dependencias inyectadas por Spring y se conservan como referencias finales para su uso por el controlador."
+)
 public class IncidenteController {
 
     private final IncidenteService incidenteService;
@@ -28,7 +33,8 @@ public class IncidenteController {
 
     public IncidenteController(
             IncidenteService incidenteService,
-            ConsultaIncidentesService consultaIncidentesService) {
+            ConsultaIncidentesService consultaIncidentesService
+    ) {
         this.incidenteService = incidenteService;
         this.consultaIncidentesService = consultaIncidentesService;
     }
@@ -39,7 +45,8 @@ public class IncidenteController {
     public ResponseEntity<IncidenteResponse> registrarIncidente(
             @PathVariable String eventoId,
             @Valid @RequestBody CrearIncidenteRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String reportanteId) {
+            @RequestHeader(value = "X-User-Id", required = false) String reportanteId
+    ) {
 
         IncidenteResponse response =
                 incidenteService.registrarIncidente(eventoId, request, reportanteId);
@@ -54,7 +61,8 @@ public class IncidenteController {
             @PathVariable String eventoId,
             @PathVariable UUID incidenteId,
             @Valid @RequestBody EditarIncidenteRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String usuarioId) {
+            @RequestHeader(value = "X-User-Id", required = false) String usuarioId
+    ) {
 
         IncidenteResponse response =
                 incidenteService.editarIncidente(
@@ -79,7 +87,8 @@ public class IncidenteController {
             @RequestParam(required = false) String direccion,
             @RequestParam(required = false) Integer pagina,
             @RequestParam(required = false) Integer tamanio,
-            @RequestHeader(value = "X-User-Id", required = false) String usuarioId) {
+            @RequestHeader(value = "X-User-Id", required = false) String usuarioId
+    ) {
 
         ConsultaIncidentesRequest filtros = new ConsultaIncidentesRequest(
                 prioridad,
@@ -107,7 +116,8 @@ public class IncidenteController {
     public ResponseEntity<IncidenteDetalleDTO> consultarDetalleIncidente(
             @PathVariable String eventoId,
             @PathVariable UUID incidenteId,
-            @RequestHeader(value = "X-User-Id", required = false) String usuarioId) {
+            @RequestHeader(value = "X-User-Id", required = false) String usuarioId
+    ) {
 
         IncidenteDetalleDTO resultado =
                 consultaIncidentesService.consultarDetalleIncidente(
@@ -128,7 +138,8 @@ public class IncidenteController {
     public ResponseEntity<Void> eliminarIncidente(
             @PathVariable String eventoId,
             @PathVariable UUID incidenteId,
-            @RequestHeader(value = "X-User-Id", required = false) String usuarioId) {
+            @RequestHeader(value = "X-User-Id", required = false) String usuarioId
+    ) {
 
         consultaIncidentesService.eliminarIncidente(
                 eventoId,

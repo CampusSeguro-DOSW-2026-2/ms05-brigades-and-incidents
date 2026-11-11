@@ -1,5 +1,7 @@
+
 package edu.eci.dosw.brigades_and_incidents.entity;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.persistence.*;
 
 import java.util.UUID;
@@ -13,6 +15,10 @@ import java.util.UUID;
                         columnNames = "usuario_id_externo"
                 )
         }
+)
+@SuppressFBWarnings(
+        value = "EI_EXPOSE_REP",
+        justification = "El estado es una entidad relacionada mediante ManyToOne y su referencia es administrada por Hibernate."
 )
 public class Brigadista {
 

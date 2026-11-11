@@ -1,6 +1,7 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.ModificarAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.AsignacionBrigadista;
@@ -10,6 +11,7 @@ import edu.eci.dosw.brigades_and_incidents.entity.Incidente;
 import edu.eci.dosw.brigades_and_incidents.entity.TipoUbicacion;
 import edu.eci.dosw.brigades_and_incidents.event.AsignacionAuditEvent;
 import edu.eci.dosw.brigades_and_incidents.exception.ConflictoOperacionException;
+import edu.eci.dosw.brigades_and_incidents.exception.RecursoNoEncontradoException;
 import edu.eci.dosw.brigades_and_incidents.repository.AsignacionBrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EstadoAsignacionRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
@@ -29,6 +31,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +52,9 @@ class AsignacionBrigadistasServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private UbicacionClient ubicacionClient;
+
     @InjectMocks
     private AsignacionBrigadistasService service;
 
@@ -65,6 +71,19 @@ class AsignacionBrigadistasServiceTest {
         lenient().when(vigente.getNombre()).thenReturn("VIGENTE");
         lenient().when(retirada.getNombre()).thenReturn("RETIRADA");
         lenient().when(zonaSegura.getNombre()).thenReturn("ZONA_SEGURA");
+
+        // Simula una ubicación existente y activa en MS02.
+        lenient().when(
+                ubicacionClient.consultarUbicacion(
+                        anyString(),
+                        anyString()
+                )
+        ).thenAnswer(invocation -> new UbicacionClient.UbicacionExterna(
+                invocation.getArgument(0),
+                "Ubicación de prueba",
+                invocation.getArgument(1),
+                true
+        ));
     }
 
     // --------------------------------------------------
@@ -120,6 +139,10 @@ class AsignacionBrigadistasServiceTest {
         assertEquals("ZONA_SEGURA", response.tipoUbicacion());
         assertEquals("VIGENTE", response.estado());
 
+        verify(ubicacionClient).consultarUbicacion(
+                "ZONA-001",
+                "ZONA_SEGURA"
+        );
         verify(asignacionRepository).save(any(AsignacionBrigadista.class));
         verify(eventPublisher).publishEvent(any(AsignacionAuditEvent.class));
     }
@@ -156,7 +179,66 @@ class AsignacionBrigadistasServiceTest {
     }
 
     @Test
-    void noDebePermitirCrearAsignacionSinIdentificadorDeActor() {
+    void noDebeCrearAsignacionConUbicacionInexistente() {
+        CrearAsignacionRequest request = new CrearAsignacionRequest(
+                "BRIG-001",
+                "EVENTO-001",
+                "ZONA-999",
+                "ZONA_SEGURA",
+                "Ubicación inexistente"
+        );
+
+        when(tipoRepository.findByNombre("ZONA_SEGURA"))
+                .thenReturn(Optional.of(zonaSegura));
+
+        when(ubicacionClient.consultarUbicacion(
+                "ZONA-999",
+                "ZONA_SEGURA"
+        )).thenReturn(null);
+
+        assertThrows(
+                RecursoNoEncontradoException.class,
+                () -> service.crearAsignacion(request, "COORD-001")
+        );
+
+        verify(asignacionRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void noDebeCrearAsignacionEnUbicacionInactiva() {
+        CrearAsignacionRequest request = new CrearAsignacionRequest(
+                "BRIG-001",
+                "EVENTO-001",
+                "ZONA-002",
+                "ZONA_SEGURA",
+                "Ubicación inactiva"
+        );
+
+        when(tipoRepository.findByNombre("ZONA_SEGURA"))
+                .thenReturn(Optional.of(zonaSegura));
+
+        when(ubicacionClient.consultarUbicacion(
+                "ZONA-002",
+                "ZONA_SEGURA"
+        )).thenReturn(new UbicacionClient.UbicacionExterna(
+                "ZONA-002",
+                "Zona inactiva",
+                "ZONA_SEGURA",
+                false
+        ));
+
+        assertThrows(
+                ConflictoOperacionException.class,
+                () -> service.crearAsignacion(request, "COORD-001")
+        );
+
+        verify(asignacionRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void noDebeCrearAsignacionSinIdentificadorDeActor() {
         CrearAsignacionRequest request = new CrearAsignacionRequest(
                 "BRIG-001",
                 "EVENTO-001",
@@ -225,7 +307,6 @@ class AsignacionBrigadistasServiceTest {
                 "VIGENTE"
         )).thenReturn(List.of(asignacion));
 
-        // CORRECCIÓN: el servicio necesita encontrar el tipo de la nueva ubicación.
         when(tipoRepository.findByNombre("ZONA_SEGURA"))
                 .thenReturn(Optional.of(zonaSegura));
 

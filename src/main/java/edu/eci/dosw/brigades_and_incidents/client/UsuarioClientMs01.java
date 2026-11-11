@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.client;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -33,11 +34,18 @@ public class UsuarioClientMs01 implements UsuarioClient {
     @Override
     public UsuarioExterno consultarUsuario(String usuarioId) {
 
+        // Validar antes de intentar convertir el identificador.
+        if (usuarioId == null || usuarioId.isBlank()) {
+            throw new Ms01IntegrationException(
+                    "El identificador del usuario no es un UUID válido"
+            );
+        }
+
         UUID id;
 
         try {
             id = UUID.fromString(usuarioId);
-        } catch (IllegalArgumentException | NullPointerException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new Ms01IntegrationException(
                     "El identificador del usuario no es un UUID válido",
                     exception

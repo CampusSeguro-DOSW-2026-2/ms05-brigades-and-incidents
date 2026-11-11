@@ -1,6 +1,7 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.dto.*;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.AsignacionAuditEvent;
@@ -28,19 +29,22 @@ public class AsignacionBrigadistasService {
     private final TipoUbicacionRepository tipoRepository;
     private final IncidenteRepository incidenteRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final UbicacionClient ubicacionClient;
 
     public AsignacionBrigadistasService(
             AsignacionBrigadistaRepository asignacionRepository,
             EstadoAsignacionRepository estadoRepository,
             TipoUbicacionRepository tipoRepository,
             IncidenteRepository incidenteRepository,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            UbicacionClient ubicacionClient) {
 
         this.asignacionRepository = asignacionRepository;
         this.estadoRepository = estadoRepository;
         this.tipoRepository = tipoRepository;
         this.incidenteRepository = incidenteRepository;
         this.eventPublisher = eventPublisher;
+        this.ubicacionClient = ubicacionClient;
     }
 
     @Transactional
@@ -49,6 +53,7 @@ public class AsignacionBrigadistasService {
             String actorId) {
 
         validarIdentificadorActor(actorId);
+
         validarDatos(
                 request.brigadistaId(),
                 request.eventoId(),
@@ -57,6 +62,11 @@ public class AsignacionBrigadistasService {
         );
 
         TipoUbicacion tipo = buscarTipo(request.tipoUbicacion());
+
+        validarUbicacionExterna(
+                request.ubicacionId(),
+                tipo.getNombre()
+        );
 
         validarDuplicado(
                 request.brigadistaId(),
@@ -105,10 +115,15 @@ public class AsignacionBrigadistasService {
 
         TipoUbicacion tipo = buscarTipo(request.tipoUbicacion());
 
+        validarUbicacionExterna(
+                request.ubicacionId(),
+                tipo.getNombre()
+        );
+
         boolean cambiaUbicacion =
                 !asignacion.getUbicacionId().equals(request.ubicacionId())
                 || !asignacion.getTipoUbicacion().getNombre()
-                        .equalsIgnoreCase(request.tipoUbicacion());
+                        .equalsIgnoreCase(tipo.getNombre());
 
         if (cambiaUbicacion) {
             validarNoDejarZonaSinBrigadista(asignacion);
@@ -228,6 +243,42 @@ public class AsignacionBrigadistasService {
                 .stream()
                 .map(this::convertirRespuesta)
                 .toList();
+    }
+
+    /**
+     * Comprueba que la ubicación exista, esté activa y corresponda
+     * al tipo solicitado en el microservicio MS02.
+     */
+    private void validarUbicacionExterna(
+            String ubicacionId,
+            String tipoUbicacion) {
+
+        UbicacionClient.UbicacionExterna ubicacion =
+                ubicacionClient.consultarUbicacion(
+                        ubicacionId,
+                        tipoUbicacion
+                );
+
+        if (ubicacion == null) {
+            throw new RecursoNoEncontradoException(
+                    "No existe una ubicación con identificador "
+                    + ubicacionId + " y tipo " + tipoUbicacion + " en MS02."
+            );
+        }
+
+        if (!ubicacion.activa()) {
+            throw new ConflictoOperacionException(
+                    "No se puede asignar un brigadista a una ubicación inactiva."
+            );
+        }
+
+        if (!ubicacionId.equals(ubicacion.id())
+                || !tipoUbicacion.equalsIgnoreCase(ubicacion.tipo())) {
+
+            throw new ConflictoOperacionException(
+                    "La ubicación consultada no corresponde con los datos solicitados."
+            );
+        }
     }
 
     /**

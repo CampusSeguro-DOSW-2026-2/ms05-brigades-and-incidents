@@ -1,28 +1,33 @@
 
 package edu.eci.dosw.brigades_and_incidents.entity;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(
-    name = "registro_auditoria",
-    indexes = {
-        @Index(name = "idx_auditoria_evento", columnList = "evento_id"),
-        @Index(
-            name = "idx_auditoria_recurso",
-            columnList = "recurso_tipo, recurso_id"
-        ),
-        @Index(
-            name = "idx_auditoria_fecha",
-            columnList = "fecha_hora_registro"
-        ),
-        @Index(
-            name = "idx_auditoria_tipo",
-            columnList = "tipo_registro_id"
-        )
-    }
+        name = "registro_auditoria",
+        indexes = {
+                @Index(name = "idx_auditoria_evento", columnList = "evento_id"),
+                @Index(
+                        name = "idx_auditoria_recurso",
+                        columnList = "recurso_tipo, recurso_id"
+                ),
+                @Index(
+                        name = "idx_auditoria_fecha",
+                        columnList = "fecha_hora_registro"
+                ),
+                @Index(
+                        name = "idx_auditoria_tipo",
+                        columnList = "tipo_registro_id"
+                )
+        }
+)
+@SuppressFBWarnings(
+        value = "EI_EXPOSE_REP",
+        justification = "El tipo de registro es una asociación ManyToOne administrada por Hibernate."
 )
 public class RegistroAuditoria {
 

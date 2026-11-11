@@ -15,9 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(
-        "/api/v1/eventos/{eventoId}/incidentes/{incidenteId}/evidencias"
-)
+@RequestMapping("/api/v1/eventos/{eventoId}/incidentes/{incidenteId}/evidencias")
 public class EvidenciaIncidenteController {
 
     private final EvidenciaIncidenteService evidenciaService;
@@ -28,17 +26,15 @@ public class EvidenciaIncidenteController {
         this.evidenciaService = evidenciaService;
     }
 
-    // Cargar evidencia. Requiere un usuario autenticado.
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EvidenciaIncidenteResponse> cargarEvidencia(
             @PathVariable String eventoId,
             @PathVariable UUID incidenteId,
             @RequestParam("archivo") MultipartFile archivo,
-            @RequestHeader(value = "X-User-Id", required = false)
-            String usuarioId
+            @RequestHeader("X-User-Id") String usuarioId
     ) {
-        EvidenciaIncidenteResponse respuesta =
+        EvidenciaIncidenteResponse response =
                 evidenciaService.cargarEvidencia(
                         eventoId,
                         incidenteId,
@@ -48,22 +44,17 @@ public class EvidenciaIncidenteController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(respuesta);
+                .body(response);
     }
 
-    // Consultar evidencias. Coordinadores, brigadistas y auditores.
     @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA', 'AUDITOR')")
     @GetMapping
     public ResponseEntity<List<EvidenciaIncidenteResponse>> listarEvidencias(
             @PathVariable String eventoId,
             @PathVariable UUID incidenteId
     ) {
-        List<EvidenciaIncidenteResponse> evidencias =
-                evidenciaService.listarEvidencias(
-                        eventoId,
-                        incidenteId
-                );
-
-        return ResponseEntity.ok(evidencias);
+        return ResponseEntity.ok(
+                evidenciaService.listarEvidencias(eventoId, incidenteId)
+        );
     }
 }

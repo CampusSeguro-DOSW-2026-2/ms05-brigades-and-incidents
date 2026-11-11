@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 public class ConsultaIncidentesService {
 
     private static final String ROL_COORDINADOR = "COORDINADOR";
+    private static final String ROL_ORGANIZADOR = "ORGANIZADOR";
     private static final String ROL_BRIGADISTA = "BRIGADISTA";
     private static final String ROL_AUDITOR = "AUDITOR";
 
@@ -139,9 +140,9 @@ public class ConsultaIncidentesService {
                         IncidenteSpecification.noEliminados()
                 );
 
-        if (roles.contains(ROL_COORDINADOR)) {
-            // El coordinador puede consultar todos los incidentes
-            // no eliminados del evento.
+        if (roles.contains(ROL_COORDINADOR) || roles.contains(ROL_ORGANIZADOR)) {
+            // El coordinador y el organizador pueden consultar todos los
+            // incidentes no eliminados del evento.
         } else if (roles.contains(ROL_BRIGADISTA)) {
             List<String> ubicacionesAsignadas =
                     obtenerUbicacionesAsignadas(usuarioId, eventoId);
@@ -388,9 +389,9 @@ public class ConsultaIncidentesService {
             );
         }
 
-        if (roles.contains(ROL_COORDINADOR)) {
-            // El coordinador puede consultar todos los incidentes
-            // no eliminados del evento.
+        if (roles.contains(ROL_COORDINADOR) || roles.contains(ROL_ORGANIZADOR)) {
+            // El coordinador y el organizador pueden consultar todos los
+            // incidentes no eliminados del evento.
         } else if (roles.contains(ROL_BRIGADISTA)) {
             List<String> ubicacionesAsignadas =
                     obtenerUbicacionesAsignadas(usuarioId, eventoId);

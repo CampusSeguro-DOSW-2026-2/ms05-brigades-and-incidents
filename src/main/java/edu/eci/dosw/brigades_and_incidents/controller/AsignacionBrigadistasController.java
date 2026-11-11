@@ -31,7 +31,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador crea una asignación.
-    @PreAuthorize("hasRole('COORDINADOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR')")
     @PostMapping
     public ResponseEntity<AsignacionResponse> crearAsignacion(
             @Valid @RequestBody CrearAsignacionRequest request,
@@ -76,7 +76,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador modifica una asignación.
-    @PreAuthorize("hasRole('COORDINADOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR')")
     @PutMapping("/{idAsignacion}")
     public ResponseEntity<AsignacionResponse> modificarAsignacion(
             @PathVariable UUID idAsignacion,
@@ -92,7 +92,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador retira una asignación.
-    @PreAuthorize("hasRole('COORDINADOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR')")
     @PatchMapping("/{idAsignacion}/retiro")
     public ResponseEntity<AsignacionResponse> retirarAsignacion(
             @PathVariable UUID idAsignacion,
@@ -122,7 +122,7 @@ public class AsignacionBrigadistasController {
     }
 
     // Consultar una asignación específica: coordinador o auditor.
-    @PreAuthorize("hasAnyRole('COORDINADOR', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'AUDITOR')")
     @GetMapping("/{idAsignacion}")
     public ResponseEntity<AsignacionResponse> consultarAsignacion(
             @PathVariable UUID idAsignacion) {
@@ -133,7 +133,7 @@ public class AsignacionBrigadistasController {
     }
 
     // Consultar todas las asignaciones de un evento: coordinador o auditor.
-    @PreAuthorize("hasAnyRole('COORDINADOR', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'AUDITOR')")
     @GetMapping("/evento/{eventoId}")
     public ResponseEntity<List<AsignacionResponse>> consultarPorEvento(
             @PathVariable String eventoId) {
@@ -146,7 +146,7 @@ public class AsignacionBrigadistasController {
     // Un brigadista solo puede consultar sus propias asignaciones.
     // Coordinador y auditor pueden consultar las de cualquier brigadista.
     @PreAuthorize(
-            "hasAnyRole('COORDINADOR', 'AUDITOR') "
+            "hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'AUDITOR') "
             + "or (hasRole('BRIGADISTA') and #brigadistaId == authentication.name)"
     )
     @GetMapping("/brigadista/{brigadistaId}")
@@ -160,10 +160,10 @@ public class AsignacionBrigadistasController {
 
     private void validarRolCoordinador(String rol) {
 
-        if (!Roles.tiene(rol, Roles.COORDINADOR)) {
+        if (!Roles.tiene(rol, Roles.COORDINADOR) && !Roles.tiene(rol, Roles.ORGANIZADOR)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Solo un coordinador puede realizar esta operación."
+                    "Solo un coordinador u organizador puede realizar esta operación."
             );
         }
     }

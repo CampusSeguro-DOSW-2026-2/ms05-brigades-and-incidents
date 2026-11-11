@@ -28,8 +28,8 @@ public class GestionAtencionIncidenteController {
         this.gestionService = gestionService;
     }
 
-    // Asignar un responsable. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINADOR')")
+    // Asignar un responsable. Solo coordinadores u organizadores.
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR')")
     @PatchMapping("/responsable")
     public ResponseEntity<CambioEstadoIncidenteResponse> asignarResponsable(
             @PathVariable String eventoId,
@@ -105,7 +105,7 @@ public class GestionAtencionIncidenteController {
     }
 
     // Consultar historial. Coordinadores, brigadistas y auditores.
-    @PreAuthorize("hasAnyRole('COORDINADOR', 'BRIGADISTA', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'BRIGADISTA', 'AUDITOR')")
     @GetMapping("/historial")
     public ResponseEntity<List<HistorialIncidenteResponse>> consultarHistorial(
             @PathVariable String eventoId,

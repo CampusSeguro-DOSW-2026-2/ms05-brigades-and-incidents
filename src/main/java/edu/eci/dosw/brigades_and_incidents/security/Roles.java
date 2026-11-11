@@ -10,6 +10,7 @@ import java.util.Set;
 public final class Roles {
 
     public static final String COORDINADOR = "COORDINADOR";
+    public static final String ORGANIZADOR = "ORGANIZADOR";
     public static final String BRIGADISTA = "BRIGADISTA";
     public static final String AUDITOR = "AUDITOR";
 
@@ -22,7 +23,7 @@ public final class Roles {
     /** Catálogo de roles que el Gateway propaga en X-User-Role. */
     public static final Set<String> CATALOGO = Set.of(
             "ESTUDIANTE", "PROFESOR", "ADMINISTRATIVO", BRIGADISTA,
-            COORDINADOR, "ORGANIZADOR", "ADMIN", AUDITOR);
+            COORDINADOR, ORGANIZADOR, "ADMIN", AUDITOR);
 
     private Roles() {
         // Utility class.

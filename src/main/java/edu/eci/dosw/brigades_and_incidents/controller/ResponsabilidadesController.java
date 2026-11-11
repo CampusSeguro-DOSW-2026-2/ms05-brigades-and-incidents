@@ -46,7 +46,7 @@ public class ResponsabilidadesController {
     }
 
     // Consultar el listado general de responsabilidades.
-    @PreAuthorize("hasAnyRole('COORDINADOR', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'AUDITOR')")
     @GetMapping
     public ResponseEntity<ListadoResponsabilidadesResponse> consultarListadoGeneral(
             @RequestHeader("X-User-Role") String rol,
@@ -77,6 +77,7 @@ public class ResponsabilidadesController {
 
         boolean autorizado =
                 Roles.tiene(rol, Roles.COORDINADOR)
+                        || Roles.tiene(rol, Roles.ORGANIZADOR)
                         || Roles.tiene(rol, Roles.AUDITOR);
 
         if (!autorizado) {

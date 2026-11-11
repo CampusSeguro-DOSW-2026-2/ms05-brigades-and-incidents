@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 public class ConsultaIncidentesService {
 
     private static final String ROL_COORDINADOR = "COORDINADOR";
+    private static final String ROL_ORGANIZADOR = "ORGANIZADOR";
     private static final String ROL_BRIGADISTA = "BRIGADISTA";
     private static final String ROL_AUDITOR = "AUDITOR";
 
@@ -125,13 +126,6 @@ public class ConsultaIncidentesService {
 
         Set<String> roles = obtenerRoles(usuario);
 
-        if (roles.contains(ROL_AUDITOR)) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Los usuarios con rol auditor no pueden consultar incidentes."
-            );
-        }
-
         Specification<Incidente> specification =
                 Specification.where(
                         IncidenteSpecification.porEvento(eventoId)
@@ -139,9 +133,11 @@ public class ConsultaIncidentesService {
                         IncidenteSpecification.noEliminados()
                 );
 
-        if (roles.contains(ROL_COORDINADOR)) {
-            // El coordinador puede consultar todos los incidentes
-            // no eliminados del evento.
+        if (roles.contains(ROL_COORDINADOR) || roles.contains(ROL_ORGANIZADOR)
+                || roles.contains(ROL_AUDITOR)) {
+            // El coordinador y el organizador pueden consultar todos los
+            // incidentes no eliminados del evento; el auditor, en solo
+            // lectura (Matriz Rol-Permiso, ms05:incident:read).
         } else if (roles.contains(ROL_BRIGADISTA)) {
             List<String> ubicacionesAsignadas =
                     obtenerUbicacionesAsignadas(usuarioId, eventoId);
@@ -365,13 +361,6 @@ public class ConsultaIncidentesService {
 
         Set<String> roles = obtenerRoles(usuario);
 
-        if (roles.contains(ROL_AUDITOR)) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Los usuarios con rol auditor no pueden consultar incidentes."
-            );
-        }
-
         Incidente incidente = incidenteRepository
                 .findByIdAndEventoId(incidenteId, eventoId)
                 .orElseThrow(() ->
@@ -388,9 +377,11 @@ public class ConsultaIncidentesService {
             );
         }
 
-        if (roles.contains(ROL_COORDINADOR)) {
-            // El coordinador puede consultar todos los incidentes
-            // no eliminados del evento.
+        if (roles.contains(ROL_COORDINADOR) || roles.contains(ROL_ORGANIZADOR)
+                || roles.contains(ROL_AUDITOR)) {
+            // El coordinador y el organizador pueden consultar todos los
+            // incidentes no eliminados del evento; el auditor, en solo
+            // lectura (Matriz Rol-Permiso, ms05:incident:read).
         } else if (roles.contains(ROL_BRIGADISTA)) {
             List<String> ubicacionesAsignadas =
                     obtenerUbicacionesAsignadas(usuarioId, eventoId);

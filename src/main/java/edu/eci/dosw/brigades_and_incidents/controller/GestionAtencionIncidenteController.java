@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/eventos/{eventoId}/incidentes/{incidenteId}")
+@RequestMapping("/api/v1/incidentes/eventos/{eventoId}/{incidenteId}")
 public class GestionAtencionIncidenteController {
 
     private final GestionAtencionIncidenteService gestionService;
@@ -28,8 +28,8 @@ public class GestionAtencionIncidenteController {
         this.gestionService = gestionService;
     }
 
-    // Asignar un responsable. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    // Asignar un responsable. Solo coordinadores u organizadores.
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR')")
     @PatchMapping("/responsable")
     public ResponseEntity<CambioEstadoIncidenteResponse> asignarResponsable(
             @PathVariable String eventoId,
@@ -87,7 +87,7 @@ public class GestionAtencionIncidenteController {
     }
 
     // Cerrar incidente. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PostMapping("/cerrar")
     public ResponseEntity<CambioEstadoIncidenteResponse> cerrarIncidente(
             @PathVariable String eventoId,
@@ -105,7 +105,7 @@ public class GestionAtencionIncidenteController {
     }
 
     // Consultar historial. Coordinadores, brigadistas y auditores.
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'BRIGADISTA', 'AUDITOR')")
     @GetMapping("/historial")
     public ResponseEntity<List<HistorialIncidenteResponse>> consultarHistorial(
             @PathVariable String eventoId,

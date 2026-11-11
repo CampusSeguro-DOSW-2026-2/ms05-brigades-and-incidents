@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/auditoria")
+@RequestMapping("/api/v1/bei/auditoria")
 public class RegistroAuditoriaController {
 
     private final RegistroAuditoriaService auditoriaService;

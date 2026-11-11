@@ -65,9 +65,11 @@ jobs:
           path: target/site/jacoco/
           if-no-files-found: warn
 
+  # Publica la imagen en GHCR desde develop y main: develop -> :develop, main -> :latest, y cada una con
+  # :sha-xxxxxxx (los 7 primeros caracteres del commit), la etiqueta que despliegan deploy.yml y deploy-prod.yml.
   publish-backend-image:
     name: Publicar imagen del backend en GHCR
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     needs: [backend-quality]
     runs-on: ubuntu-latest
 
@@ -89,17 +91,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Identificar imagen y etiqueta
+      - name: Calcular etiquetas de la imagen
         id: meta
-        shell: bash
-        run: |
-          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-api" >> "$GITHUB_OUTPUT"
-          echo "tag=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-api
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha
 
       - name: Construir y publicar imagen Spring Boot
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # CD al entorno de prueba: cada push a develop despliega en la VM de MS05 la imagen recién publicada.
+  desplegar-test:
+    needs: publish-backend-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      entorno: test
+      ref: ${{ github.sha }}
+    secrets: inherit

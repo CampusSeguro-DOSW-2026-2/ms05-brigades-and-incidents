@@ -1,30 +1,57 @@
 
 package edu.eci.dosw.brigades_and_incidents.client;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 @Component
 @Profile("!stub & !local")
 public class UbicacionClientMs02 implements UbicacionClient {
 
+    private static final List<String> CABECERAS_PROPAGADAS =
+            List.of("X-User-Id", "X-User-Role", "X-Correlation-ID");
+
     private final RestClient restClient;
 
     public UbicacionClientMs02(
             RestClient.Builder builder,
-            @Value("${campusseguro.ms02.base-url}") String baseUrl
+            @Value("${campusseguro.ms02.base-url}") String baseUrl,
+            @Value("${campusseguro.ms02.service-key:}") String serviceKey
     ) {
+        // MS02 se consulta a través del Gateway con la clave de MS05 (Estándares §5).
         this.restClient = builder
                 .baseUrl(baseUrl)
+                .defaultHeader("X-Service-Key", serviceKey)
                 .build();
+    }
+
+    /**
+     * MS02 autoriza por la identidad del usuario: se propagan sin cambios X-User-Id, X-User-Role y
+     * X-Correlation-ID de la solicitud en curso (Estándares §5).
+     */
+    private static void propagarIdentidad(HttpHeaders headers) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos) {
+            HttpServletRequest solicitud = atributos.getRequest();
+            for (String nombre : CABECERAS_PROPAGADAS) {
+                String valor = solicitud.getHeader(nombre);
+                if (valor != null && !valor.isBlank()) {
+                    headers.set(nombre, valor);
+                }
+            }
+        }
     }
 
     @Override
@@ -76,6 +103,7 @@ public class UbicacionClientMs02 implements UbicacionClient {
 
         EdificioResponse response = restClient.get()
                 .uri("/api/v1/buildings/{id}", id)
+                .headers(UbicacionClientMs02::propagarIdentidad)
                 .retrieve()
                 .body(EdificioResponse.class);
 
@@ -97,6 +125,7 @@ public class UbicacionClientMs02 implements UbicacionClient {
     ) {
         ZonaSeguraResponse response = restClient.get()
                 .uri("/api/v1/safe-zones/{id}", id)
+                .headers(UbicacionClientMs02::propagarIdentidad)
                 .retrieve()
                 .body(ZonaSeguraResponse.class);
 

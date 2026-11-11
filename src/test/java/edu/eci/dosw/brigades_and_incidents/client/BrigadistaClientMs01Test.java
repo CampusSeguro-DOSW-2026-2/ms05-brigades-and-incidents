@@ -101,7 +101,7 @@ class BrigadistaClientMs01Test {
                             "segundo_nombre": "Alejandra",
                             "primer_apellido": "Novoa",
                             "segundo_apellido": "Castellanos",
-                            "roles": ["COORDINATOR", "BRIGADISTA"]
+                            "roles": ["COORDINADOR", "BRIGADISTA"]
                         },
                         {
                             "id": "22222222-2222-2222-2222-222222222222",
@@ -384,7 +384,7 @@ class BrigadistaClientMs01Test {
                             "segundo_nombre": " ",
                             "primer_apellido": null,
                             "segundo_apellido": null,
-                            "roles": ["COORDINATOR"]
+                            "roles": ["COORDINADOR"]
                         }
                     ],
                     "page": 0,

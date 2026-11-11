@@ -131,7 +131,7 @@ class BuscarBrigadistaServiceTest {
         List<BrigadistaExterno> externos = List.of(
                 new BrigadistaExterno("id-2", "Ana María", "BRIGADISTA"),
                 new BrigadistaExterno("id-1", "Ana", "BRIGADISTA"),
-                new BrigadistaExterno("id-3", "Ana Coordinadora", "COORDINATOR"),
+                new BrigadistaExterno("id-3", "Ana Coordinadora", "COORDINADOR"),
                 new BrigadistaExterno("id-4", "Carlos", "BRIGADISTA")
         );
 
@@ -217,7 +217,7 @@ class BuscarBrigadistaServiceTest {
     @Test
     void debeIgnorarUsuariosQueNoSeanBrigadistas() {
         List<BrigadistaExterno> externos = List.of(
-                new BrigadistaExterno("coord-1", "Ana Coordinadora", "COORDINATOR"),
+                new BrigadistaExterno("coord-1", "Ana Coordinadora", "COORDINADOR"),
                 new BrigadistaExterno("aud-1", "Ana Auditora", "AUDITOR")
         );
 

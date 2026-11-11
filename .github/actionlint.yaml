@@ -1,0 +1,4 @@
+# Etiquetas propias de los runners self-hosted: "ms05" es el runner de la VM de MS05.
+self-hosted-runner:
+  labels:
+    - ms05

@@ -5,6 +5,7 @@ import edu.eci.dosw.brigades_and_incidents.dto.ConsultaIncidentesRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteDetalleDTO;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResumenDTO;
+import edu.eci.dosw.brigades_and_incidents.dto.PaginaResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.EditarIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.service.ConsultaIncidentesService;
@@ -78,17 +79,22 @@ public class IncidenteController {
     // Consultar incidentes. Requiere un usuario autenticado.
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/consulta")
-    public ResponseEntity<Page<IncidenteResumenDTO>> consultarIncidentes(
+    public ResponseEntity<PaginaResponse<IncidenteResumenDTO>> consultarIncidentes(
             @PathVariable String eventoId,
             @RequestParam(required = false) String prioridad,
             @RequestParam(required = false) String estado,
             @RequestParam(required = false) String ubicacionId,
             @RequestParam(required = false) String ordenarPor,
             @RequestParam(required = false) String direccion,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
             @RequestParam(required = false) Integer pagina,
             @RequestParam(required = false) Integer tamanio,
             @RequestHeader(value = "X-User-Id", required = false) String usuarioId
     ) {
+        // Paginación de los Estándares (§9): page y size; pagina y tamanio se aceptan por compatibilidad.
+        Integer numeroPagina = page != null ? page : pagina;
+        Integer tamanioPagina = size != null ? size : tamanio;
 
         ConsultaIncidentesRequest filtros = new ConsultaIncidentesRequest(
                 prioridad,
@@ -96,8 +102,8 @@ public class IncidenteController {
                 ubicacionId,
                 ordenarPor,
                 direccion,
-                pagina,
-                tamanio
+                numeroPagina,
+                tamanioPagina
         );
 
         Page<IncidenteResumenDTO> resultado =
@@ -107,7 +113,7 @@ public class IncidenteController {
                         usuarioId
                 );
 
-        return ResponseEntity.ok(resultado);
+        return ResponseEntity.ok(PaginaResponse.de(resultado));
     }
 
     // Consultar el detalle de un incidente. Requiere autenticación.

@@ -1,3 +1,4 @@
+
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -20,6 +21,10 @@
 
     <properties>
         <java.version>21</java.version>
+        <jacoco.version>0.8.14</jacoco.version>
+        <jacoco.line.minimum>0.80</jacoco.line.minimum>
+        <spotbugs.plugin.version>4.10.5.0</spotbugs.plugin.version>
+        <spotbugs.annotations.version>4.10.5</spotbugs.annotations.version>
     </properties>
 
     <dependencies>
@@ -30,7 +35,7 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Validación de datos -->
+        <!-- Validacion de datos -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
@@ -55,6 +60,14 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Anotaciones para justificar hallazgos de SpotBugs -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>${spotbugs.annotations.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Pruebas de persistencia -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -62,7 +75,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Pruebas de validación -->
+        <!-- Pruebas de validacion -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation-test</artifactId>
@@ -92,6 +105,77 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- Cobertura de codigo con JaCoCo -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+
+                <executions>
+
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+
+                </executions>
+            </plugin>
+
+            <!-- Analisis estatico con SpotBugs -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs.plugin.version}</version>
+
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Medium</threshold>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <id>spotbugs-verify</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>spotbugs</goal>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

@@ -1,12 +1,17 @@
 
 package edu.eci.dosw.brigades_and_incidents.entity;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "asignacion_brigadista")
+@SuppressFBWarnings(
+        value = "EI_EXPOSE_REP",
+        justification = "Las referencias son asociaciones JPA administradas por Hibernate. Se conserva la identidad de las entidades relacionadas."
+)
 public class AsignacionBrigadista {
 
     @Id

@@ -1,3 +1,4 @@
+
 package edu.eci.dosw.brigades_and_incidents.dto;
 
 import java.util.List;
@@ -9,4 +10,9 @@ public record BuscarBrigadistaResponse(
         String estado,
         List<AsignacionBrigadistaResumenResponse> asignaciones
 ) {
+    public BuscarBrigadistaResponse {
+        asignaciones = asignaciones == null
+                ? List.of()
+                : List.copyOf(asignaciones);
+    }
 }

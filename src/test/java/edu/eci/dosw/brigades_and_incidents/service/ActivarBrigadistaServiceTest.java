@@ -1,11 +1,12 @@
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.dto.ActivacionBrigadistaResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.CambiarEstadoBrigadistaRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.Brigadista;
 import edu.eci.dosw.brigades_and_incidents.entity.EstadoBrigadista;
 import edu.eci.dosw.brigades_and_incidents.repository.BrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EstadoBrigadistaRepository;
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,107 +31,163 @@ class ActivarBrigadistaServiceTest {
     @InjectMocks
     private ActivarBrigadistaService service;
 
+    private Brigadista brigadista;
+    private EstadoBrigadista estadoActivo;
+    private EstadoBrigadista estadoInactivo;
+
+    @BeforeEach
+    void setUp() {
+        estadoActivo = new EstadoBrigadista("ACTIVO", "Brigadista activo");
+        estadoInactivo = new EstadoBrigadista("INACTIVO", "Brigadista inactivo");
+        brigadista = new Brigadista("usuario-123", estadoInactivo);
+    }
+
     @Test
-    void debeActivarUnBrigadistaRegistrado() {
-        Brigadista brigadista = mock(Brigadista.class);
-        EstadoBrigadista estadoActivo = mock(EstadoBrigadista.class);
-
-        when(brigadistaRepository.findByUsuarioIdExterno("BRIG-001"))
+    void debeActivarBrigadistaCorrectamente() {
+        when(brigadistaRepository.findByUsuarioIdExterno("usuario-123"))
                 .thenReturn(Optional.of(brigadista));
-
-        when(brigadista.getUsuarioIdExterno()).thenReturn("BRIG-001");
-
         when(estadoBrigadistaRepository.findByNombre("ACTIVO"))
                 .thenReturn(Optional.of(estadoActivo));
+        when(brigadistaRepository.save(brigadista)).thenReturn(brigadista);
 
-        when(brigadistaRepository.save(brigadista))
-                .thenReturn(brigadista);
-
-        var response = service.cambiarEstado(
-                "BRIG-001",
+        ActivacionBrigadistaResponse response = service.cambiarEstado(
+                "usuario-123",
                 new CambiarEstadoBrigadistaRequest("ACTIVO")
         );
 
         assertNotNull(response);
         assertNotNull(response.idActivacion());
-        assertEquals("BRIG-001", response.brigadistaId());
+        assertEquals("usuario-123", response.brigadistaId());
         assertEquals("ACTIVO", response.estado());
         assertNotNull(response.fechaCambioEstado());
+        assertSame(estadoActivo, brigadista.getEstado());
 
-        verify(brigadista).setEstado(estadoActivo);
         verify(brigadistaRepository).save(brigadista);
     }
 
     @Test
-    void debeDesactivarUnBrigadistaRegistrado() {
-        Brigadista brigadista = mock(Brigadista.class);
-        EstadoBrigadista estadoInactivo = mock(EstadoBrigadista.class);
-
-        when(brigadistaRepository.findByUsuarioIdExterno("BRIG-002"))
+    void debeInactivarBrigadistaCorrectamente() {
+        when(brigadistaRepository.findByUsuarioIdExterno("usuario-123"))
                 .thenReturn(Optional.of(brigadista));
-
-        when(brigadista.getUsuarioIdExterno()).thenReturn("BRIG-002");
-
         when(estadoBrigadistaRepository.findByNombre("INACTIVO"))
                 .thenReturn(Optional.of(estadoInactivo));
 
-        when(brigadistaRepository.save(brigadista))
-                .thenReturn(brigadista);
-
-        var response = service.cambiarEstado(
-                "BRIG-002",
+        ActivacionBrigadistaResponse response = service.cambiarEstado(
+                "usuario-123",
                 new CambiarEstadoBrigadistaRequest("INACTIVO")
         );
 
-        assertNotNull(response);
-        assertEquals("BRIG-002", response.brigadistaId());
         assertEquals("INACTIVO", response.estado());
-
-        verify(brigadista).setEstado(estadoInactivo);
+        assertSame(estadoInactivo, brigadista.getEstado());
         verify(brigadistaRepository).save(brigadista);
     }
 
     @Test
-    void noDebeAceptarUnEstadoDiferenteDeActivoOInactivo() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> service.cambiarEstado(
-                        "BRIG-001",
-                        new CambiarEstadoBrigadistaRequest("SUSPENDIDO")
-                )
+    void debeAceptarEstadoConEspaciosYMinusculas() {
+        when(brigadistaRepository.findByUsuarioIdExterno("usuario-123"))
+                .thenReturn(Optional.of(brigadista));
+        when(estadoBrigadistaRepository.findByNombre("ACTIVO"))
+                .thenReturn(Optional.of(estadoActivo));
+
+        ActivacionBrigadistaResponse response = service.cambiarEstado(
+                "usuario-123",
+                new CambiarEstadoBrigadistaRequest(" activo ")
         );
 
-        verifyNoInteractions(brigadistaRepository);
-        verifyNoInteractions(estadoBrigadistaRepository);
+        assertEquals("ACTIVO", response.estado());
+        verify(brigadistaRepository).save(brigadista);
     }
 
     @Test
-    void noDebeActivarUnBrigadistaQueNoEstaRegistrado() {
-        when(brigadistaRepository.findByUsuarioIdExterno("BRIG-999"))
+    void debeRechazarIdentificadorNulo() {
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado(
+                        null,
+                        new CambiarEstadoBrigadistaRequest("ACTIVO")
+                ));
+
+        verifyNoInteractions(brigadistaRepository, estadoBrigadistaRepository);
+    }
+
+    @Test
+    void debeRechazarIdentificadorVacio() {
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado(
+                        " ",
+                        new CambiarEstadoBrigadistaRequest("ACTIVO")
+                ));
+
+        verifyNoInteractions(brigadistaRepository, estadoBrigadistaRepository);
+    }
+
+    @Test
+    void debeRechazarSolicitudNula() {
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado("usuario-123", null));
+
+        verifyNoInteractions(brigadistaRepository, estadoBrigadistaRepository);
+    }
+
+    @Test
+    void debeRechazarEstadoNulo() {
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado(
+                        "usuario-123",
+                        new CambiarEstadoBrigadistaRequest(null)
+                ));
+
+        verifyNoInteractions(brigadistaRepository, estadoBrigadistaRepository);
+    }
+
+    @Test
+    void debeRechazarEstadoVacio() {
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado(
+                        "usuario-123",
+                        new CambiarEstadoBrigadistaRequest(" ")
+                ));
+
+        verifyNoInteractions(brigadistaRepository, estadoBrigadistaRepository);
+    }
+
+    @Test
+    void debeRechazarEstadoNoPermitido() {
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado(
+                        "usuario-123",
+                        new CambiarEstadoBrigadistaRequest("SUSPENDIDO")
+                ));
+
+        verifyNoInteractions(brigadistaRepository, estadoBrigadistaRepository);
+    }
+
+    @Test
+    void debeRechazarBrigadistaInexistente() {
+        when(brigadistaRepository.findByUsuarioIdExterno("desconocido"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> service.cambiarEstado(
-                        "BRIG-999",
+        assertThrows(IllegalArgumentException.class, () ->
+                service.cambiarEstado(
+                        "desconocido",
                         new CambiarEstadoBrigadistaRequest("ACTIVO")
-                )
-        );
+                ));
 
         verify(brigadistaRepository, never()).save(any());
     }
 
     @Test
-    void noDebeCambiarEstadoCuandoElIdentificadorEstaVacio() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> service.cambiarEstado(
-                        " ",
-                        new CambiarEstadoBrigadistaRequest("ACTIVO")
-                )
-        );
+    void debeRechazarEstadoQueNoExisteEnBaseDeDatos() {
+        when(brigadistaRepository.findByUsuarioIdExterno("usuario-123"))
+                .thenReturn(Optional.of(brigadista));
+        when(estadoBrigadistaRepository.findByNombre("ACTIVO"))
+                .thenReturn(Optional.empty());
 
-        verifyNoInteractions(brigadistaRepository);
-        verifyNoInteractions(estadoBrigadistaRepository);
+        assertThrows(IllegalStateException.class, () ->
+                service.cambiarEstado(
+                        "usuario-123",
+                        new CambiarEstadoBrigadistaRequest("ACTIVO")
+                ));
+
+        verify(brigadistaRepository, never()).save(any());
     }
 }

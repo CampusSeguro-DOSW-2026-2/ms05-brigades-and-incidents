@@ -1,36 +1,42 @@
-
-# Etapa 1: Construcción de la aplicación
+# Etapa 1: Construcción y verificación de la aplicación
 FROM maven:3.9.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-# Copiar archivos de configuración de Maven
 COPY pom.xml .
 COPY mvnw .
 COPY .mvn .mvn
 
 RUN chmod +x mvnw
 
-# Descargar dependencias
 RUN ./mvnw dependency:go-offline -B
 
-# Copiar código fuente
 COPY src ./src
 COPY database ./database
 
-# Construir el ejecutable
-RUN ./mvnw clean package -DskipTests -B
+# Ejecuta las pruebas antes de generar el JAR
+RUN ./mvnw clean verify -B
 
-# Etapa 2: Ejecución de la aplicación
+# Etapa 2: Imagen de ejecución
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-COPY --from=build /app/target/brigades-and-incidents-0.0.1-SNAPSHOT.jar app.jar
+# Usuario sin privilegios para ejecutar la aplicación
+RUN mkdir -p /app/uploads/evidencias \
+    && chown -R 10001:10001 /app/uploads
 
-# Directorio para evidencias
-RUN mkdir -p /app/uploads/evidencias
+COPY --from=build --chown=10001:10001 \
+    /app/target/brigades-and-incidents-0.0.1-SNAPSHOT.jar \
+    app.jar
 
+# Directorio utilizado por el almacenamiento de evidencias
+ENV EVIDENCIAS_DIRECTORIO=/app/uploads/evidencias
+
+# Puerto interno de Spring Boot
 EXPOSE 8080
+
+# No ejecutar el proceso como root
+USER 10001:10001
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -155,7 +155,7 @@ public class EvidenciaIncidenteService {
         String usuarioId = obtenerUsuarioAutenticado();
 
         // Verificar que el incidente exista y pertenezca al evento.
-        Incidente incidente = buscarIncidente(eventoId, incidenteId);
+        buscarIncidente(eventoId, incidenteId);
 
         // Verificar que el usuario tenga permiso de consulta.
         validarPermisosConsulta(usuarioId);
@@ -379,8 +379,10 @@ public class EvidenciaIncidenteService {
             );
         }
 
-        if (archivo.getOriginalFilename() == null
-                || archivo.getOriginalFilename().isBlank()) {
+        // Obtener el nombre una sola vez y validar que no sea nulo.
+        String nombreArchivo = archivo.getOriginalFilename();
+
+        if (nombreArchivo == null || nombreArchivo.isBlank()) {
             throw new EvidenciaIncidenteException(
                     "El archivo debe tener un nombre válido."
             );

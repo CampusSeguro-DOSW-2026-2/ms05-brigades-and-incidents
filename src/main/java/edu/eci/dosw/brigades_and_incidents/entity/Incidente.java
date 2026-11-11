@@ -1,12 +1,17 @@
 
 package edu.eci.dosw.brigades_and_incidents.entity;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "incidente")
+@SuppressFBWarnings(
+        value = "EI_EXPOSE_REP",
+        justification = "Las referencias a tipo de ubicación, prioridad y estado son asociaciones JPA administradas por Hibernate."
+)
 public class Incidente {
 
     @Id

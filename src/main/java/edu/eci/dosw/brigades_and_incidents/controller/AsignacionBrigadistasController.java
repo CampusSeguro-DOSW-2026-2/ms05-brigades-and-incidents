@@ -31,7 +31,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador crea una asignación.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PostMapping
     public ResponseEntity<AsignacionResponse> crearAsignacion(
             @Valid @RequestBody CrearAsignacionRequest request,
@@ -54,7 +54,7 @@ public class AsignacionBrigadistasController {
             @RequestHeader("X-User-Id") String brigadistaId,
             @RequestHeader("X-User-Role") String rol) {
 
-        if (!Roles.BRIGADISTA.equalsIgnoreCase(rol)) {
+        if (!Roles.tiene(rol, Roles.BRIGADISTA)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Esta operación está disponible únicamente para brigadistas."
@@ -76,7 +76,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador modifica una asignación.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PutMapping("/{idAsignacion}")
     public ResponseEntity<AsignacionResponse> modificarAsignacion(
             @PathVariable UUID idAsignacion,
@@ -92,7 +92,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador retira una asignación.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PatchMapping("/{idAsignacion}/retiro")
     public ResponseEntity<AsignacionResponse> retirarAsignacion(
             @PathVariable UUID idAsignacion,
@@ -111,23 +111,18 @@ public class AsignacionBrigadistasController {
     @PostMapping("/predeterminadas")
     public ResponseEntity<List<AsignacionResponse>> crearPorDefecto(
             @Valid @RequestBody List<@Valid AsignacionPorDefectoRequest> solicitudes,
-            @RequestHeader("X-User-Id") String actorId,
-            @RequestHeader("X-User-Role") String rol) {
+            @RequestHeader(value = "X-User-Id", required = false) String actorId) {
 
-        if (!Roles.SERVICE_MS06.equalsIgnoreCase(rol)) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Esta operación está reservada para el servicio autorizado de MS06."
-            );
-        }
-
+        // Solo MS06: la autoridad SERVICE_MS06 sale de X-Service-Name, que el Gateway deriva de su clave.
+        // El actor es el usuario por el que actúa MS06, si lo propaga; si no, el propio servicio.
+        String actor = actorId != null && !actorId.isBlank() ? actorId : "ms06";
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                service.crearAsignacionesPorDefecto(solicitudes, actorId)
+                service.crearAsignacionesPorDefecto(solicitudes, actor)
         );
     }
 
     // Consultar una asignación específica: coordinador o auditor.
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'AUDITOR')")
     @GetMapping("/{idAsignacion}")
     public ResponseEntity<AsignacionResponse> consultarAsignacion(
             @PathVariable UUID idAsignacion) {
@@ -138,7 +133,7 @@ public class AsignacionBrigadistasController {
     }
 
     // Consultar todas las asignaciones de un evento: coordinador o auditor.
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'AUDITOR')")
     @GetMapping("/evento/{eventoId}")
     public ResponseEntity<List<AsignacionResponse>> consultarPorEvento(
             @PathVariable String eventoId) {
@@ -151,7 +146,7 @@ public class AsignacionBrigadistasController {
     // Un brigadista solo puede consultar sus propias asignaciones.
     // Coordinador y auditor pueden consultar las de cualquier brigadista.
     @PreAuthorize(
-            "hasAnyRole('COORDINATOR', 'AUDITOR') "
+            "hasAnyRole('COORDINADOR', 'AUDITOR') "
             + "or (hasRole('BRIGADISTA') and #brigadistaId == authentication.name)"
     )
     @GetMapping("/brigadista/{brigadistaId}")
@@ -165,7 +160,7 @@ public class AsignacionBrigadistasController {
 
     private void validarRolCoordinador(String rol) {
 
-        if (!Roles.COORDINATOR.equalsIgnoreCase(rol)) {
+        if (!Roles.tiene(rol, Roles.COORDINADOR)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Solo un coordinador puede realizar esta operación."

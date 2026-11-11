@@ -40,7 +40,8 @@ class UbicacionClientMs02Test {
 
         client = new UbicacionClientMs02(
                 RestClient.builder(),
-                baseUrl
+                baseUrl,
+                "clave-de-prueba-de-ms05-con-mas-de-32-caracteres"
         );
     }
 

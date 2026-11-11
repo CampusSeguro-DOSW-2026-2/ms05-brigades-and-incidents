@@ -30,10 +30,11 @@ class GlobalExceptionHandlerTest {
     ) {
         assertThat(respuesta.getStatusCode().value()).isEqualTo(codigo);
         assertThat(respuesta.getBody()).isNotNull();
-        assertThat(respuesta.getBody().codigo()).isEqualTo(codigo);
+        assertThat(respuesta.getBody().status()).isEqualTo(codigo);
+        assertThat(respuesta.getBody().codigo()).isNotBlank();
         assertThat(respuesta.getBody().mensaje()).isEqualTo(mensaje);
-        assertThat(respuesta.getBody().fecha()).isNotNull();
-        assertThat(respuesta.getBody().error()).isNotBlank();
+        assertThat(respuesta.getBody().errores()).isNotNull();
+        assertThat(respuesta.getBody().correlationId()).isNotBlank();
     }
 
     @Test
@@ -112,8 +113,11 @@ class GlobalExceptionHandlerTest {
                         new MethodArgumentNotValidException(
                                 parametro, resultado));
 
-        verificar(respuesta, 400,
-                "nombre: no puede estar vacío; edad: debe ser positiva");
+        verificar(respuesta, 400, "Los datos enviados no son válidos.");
+        assertThat(respuesta.getBody().codigo()).isEqualTo("VALIDACION");
+        assertThat(respuesta.getBody().errores()).containsExactly(
+                new ErrorResponse.ErrorCampo("nombre", "no puede estar vacío"),
+                new ErrorResponse.ErrorCampo("edad", "debe ser positiva"));
     }
 
     @Test

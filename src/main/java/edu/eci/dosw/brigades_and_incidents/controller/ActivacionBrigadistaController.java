@@ -24,7 +24,7 @@ public class ActivacionBrigadistaController {
     }
 
     // Cambiar el estado de un brigadista. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PutMapping("/{brigadistaId}/estado")
     public ResponseEntity<ActivacionBrigadistaResponse> cambiarEstado(
             @PathVariable String brigadistaId,

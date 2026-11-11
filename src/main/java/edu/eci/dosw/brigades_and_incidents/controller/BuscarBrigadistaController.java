@@ -23,7 +23,7 @@ public class BuscarBrigadistaController {
         this.buscarBrigadistaService = buscarBrigadistaService;
     }
 
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @GetMapping("/buscar")
     public BusquedaBrigadistasResponse buscarBrigadistas(
             @RequestHeader("X-User-Id") String usuarioId,
@@ -37,7 +37,7 @@ public class BuscarBrigadistaController {
         );
     }
 
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PatchMapping("/{brigadistaId}/estado")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cambiarEstado(
@@ -66,7 +66,7 @@ public class BuscarBrigadistaController {
             );
         }
 
-        if (!Roles.COORDINATOR.equalsIgnoreCase(rolUsuario.trim())) {
+        if (!Roles.tiene(rolUsuario, Roles.COORDINADOR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "No tiene permisos para realizar esta operación"

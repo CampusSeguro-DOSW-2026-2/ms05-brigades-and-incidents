@@ -37,7 +37,7 @@ class BuscarBrigadistaControllerTest {
         BusquedaBrigadistasResponse resultado =
                 controller.buscarBrigadistas(
                         "coordinador-1",
-                        "COORDINATOR",
+                        "COORDINADOR",
                         "Paula"
                 );
 
@@ -55,7 +55,7 @@ class BuscarBrigadistaControllerTest {
         BusquedaBrigadistasResponse resultado =
                 controller.buscarBrigadistas(
                         "coordinador-1",
-                        " coordinator ",
+                        " coordinador ",
                         "Ana"
                 );
 
@@ -68,7 +68,7 @@ class BuscarBrigadistaControllerTest {
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
                 () -> controller.buscarBrigadistas(
-                        null, "COORDINATOR", "Ana"
+                        null, "COORDINADOR", "Ana"
                 )
         );
 
@@ -81,7 +81,7 @@ class BuscarBrigadistaControllerTest {
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
                 () -> controller.buscarBrigadistas(
-                        " ", "COORDINATOR", "Ana"
+                        " ", "COORDINADOR", "Ana"
                 )
         );
 
@@ -137,7 +137,7 @@ class BuscarBrigadistaControllerTest {
                 controller.cambiarEstado(
                         "brigadista-1",
                         "coordinador-1",
-                        "COORDINATOR",
+                        "COORDINADOR",
                         request
                 )
         );
@@ -152,7 +152,7 @@ class BuscarBrigadistaControllerTest {
                 () -> controller.cambiarEstado(
                         "brigadista-1",
                         null,
-                        "COORDINATOR",
+                        "COORDINADOR",
                         new CambiarEstadoBrigadistaRequest("ACTIVO")
                 )
         );

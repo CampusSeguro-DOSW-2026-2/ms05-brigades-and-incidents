@@ -33,7 +33,7 @@ public class ResponsabilidadesController {
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "10") int tamano
     ) {
-        if (!Roles.BRIGADISTA.equalsIgnoreCase(rol)) {
+        if (!Roles.tiene(rol, Roles.BRIGADISTA)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "El panel de responsabilidades está disponible únicamente para brigadistas."
@@ -46,7 +46,7 @@ public class ResponsabilidadesController {
     }
 
     // Consultar el listado general de responsabilidades.
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'AUDITOR')")
     @GetMapping
     public ResponseEntity<ListadoResponsabilidadesResponse> consultarListadoGeneral(
             @RequestHeader("X-User-Role") String rol,
@@ -76,8 +76,8 @@ public class ResponsabilidadesController {
     private void validarRolConsultaGeneral(String rol) {
 
         boolean autorizado =
-                Roles.COORDINATOR.equalsIgnoreCase(rol)
-                        || Roles.AUDITOR.equalsIgnoreCase(rol);
+                Roles.tiene(rol, Roles.COORDINADOR)
+                        || Roles.tiene(rol, Roles.AUDITOR);
 
         if (!autorizado) {
             throw new ResponseStatusException(

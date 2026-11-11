@@ -67,7 +67,7 @@ class RegistroAuditoriaControllerTest {
         when(auditoriaService.consultarTodos())
                 .thenReturn(List.of());
 
-        mockMvc.perform(solicitudAuditor("/api/v1/auditoria"))
+        mockMvc.perform(solicitudAuditor("/api/v1/bei/auditoria"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
     }
@@ -77,7 +77,7 @@ class RegistroAuditoriaControllerTest {
         when(auditoriaService.consultarTodos())
                 .thenReturn(List.of(crearRegistro()));
 
-        mockMvc.perform(solicitudAuditor("/api/v1/auditoria"))
+        mockMvc.perform(solicitudAuditor("/api/v1/bei/auditoria"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tipoRegistro").value("INCIDENTE"))
                 .andExpect(jsonPath("$[0].usuarioOrigen").value("usuario-123"))
@@ -92,7 +92,7 @@ class RegistroAuditoriaControllerTest {
                 .thenReturn(List.of());
 
         mockMvc.perform(
-                solicitudAuditor("/api/v1/auditoria/eventos/evento-123")
+                solicitudAuditor("/api/v1/bei/auditoria/eventos/evento-123")
         )
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
@@ -104,7 +104,7 @@ class RegistroAuditoriaControllerTest {
                 .thenReturn(List.of(crearRegistro()));
 
         mockMvc.perform(
-                solicitudAuditor("/api/v1/auditoria/eventos/evento-123")
+                solicitudAuditor("/api/v1/bei/auditoria/eventos/evento-123")
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].eventoId").value("evento-123"))
@@ -119,7 +119,7 @@ class RegistroAuditoriaControllerTest {
 
         mockMvc.perform(
                 solicitudAuditor(
-                        "/api/v1/auditoria/recursos/INCIDENTE/incidente-123"
+                        "/api/v1/bei/auditoria/recursos/INCIDENTE/incidente-123"
                 )
         )
                 .andExpect(status().isOk())
@@ -134,7 +134,7 @@ class RegistroAuditoriaControllerTest {
 
         mockMvc.perform(
                 solicitudAuditor(
-                        "/api/v1/auditoria/recursos/INCIDENTE/incidente-123"
+                        "/api/v1/bei/auditoria/recursos/INCIDENTE/incidente-123"
                 )
         )
                 .andExpect(status().isOk())

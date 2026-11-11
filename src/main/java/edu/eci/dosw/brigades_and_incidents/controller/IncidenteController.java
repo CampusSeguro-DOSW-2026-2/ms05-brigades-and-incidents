@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/eventos/{eventoId}/incidentes")
+@RequestMapping("/api/v1/incidentes/eventos/{eventoId}")
 @SuppressFBWarnings(
         value = "EI_EXPOSE_REP2",
         justification = "Los servicios son dependencias inyectadas por Spring y se conservan como referencias finales para su uso por el controlador."
@@ -55,7 +55,7 @@ public class IncidenteController {
     }
 
     // Modificar un incidente. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @PutMapping("/{incidenteId}")
     public ResponseEntity<IncidenteResponse> editarIncidente(
             @PathVariable String eventoId,
@@ -133,7 +133,7 @@ public class IncidenteController {
      * Elimina logicamente un incidente resuelto.
      * Solo los coordinadores pueden realizar esta operación.
      */
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasRole('COORDINADOR')")
     @DeleteMapping("/{incidenteId}")
     public ResponseEntity<Void> eliminarIncidente(
             @PathVariable String eventoId,

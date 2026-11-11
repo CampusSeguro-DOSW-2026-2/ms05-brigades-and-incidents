@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/eventos/{eventoId}/incidentes/{incidenteId}/evidencias")
+@RequestMapping("/api/v1/incidentes/eventos/{eventoId}/{incidenteId}/evidencias")
 public class EvidenciaIncidenteController {
 
     private final EvidenciaIncidenteService evidenciaService;
@@ -26,7 +26,7 @@ public class EvidenciaIncidenteController {
         this.evidenciaService = evidenciaService;
     }
 
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'BRIGADISTA')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EvidenciaIncidenteResponse> cargarEvidencia(
             @PathVariable String eventoId,
@@ -47,7 +47,7 @@ public class EvidenciaIncidenteController {
                 .body(response);
     }
 
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA', 'AUDITOR')")
+    @PreAuthorize("hasAnyRole('COORDINADOR', 'BRIGADISTA', 'AUDITOR')")
     @GetMapping
     public ResponseEntity<List<EvidenciaIncidenteResponse>> listarEvidencias(
             @PathVariable String eventoId,

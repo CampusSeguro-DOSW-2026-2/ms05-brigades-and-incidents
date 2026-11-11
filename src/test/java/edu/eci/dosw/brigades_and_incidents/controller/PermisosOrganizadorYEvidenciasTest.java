@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -131,5 +132,18 @@ class PermisosOrganizadorYEvidenciasTest {
         }
         mockMvc.perform(como(multipart(BASE_INCIDENTE + "/evidencias").file(archivo), "AUDITOR"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void elBrigadistaCambiaSuPropioEstadoPeroNoElDeOtro() throws Exception {
+        mockMvc.perform(como(put("/api/v1/brigadistas/usuario-1/estado"), "BRIGADISTA")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"ACTIVO\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(como(put("/api/v1/brigadistas/otro-brigadista/estado"), "BRIGADISTA")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"ACTIVO\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(como(put("/api/v1/brigadistas/otro-brigadista/estado"), "ORGANIZADOR")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"estado\":\"ACTIVO\"}"))
+                .andExpect(status().isOk());
     }
 }

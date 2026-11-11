@@ -1,0 +1,18 @@
+
+package edu.eci.dosw.brigades_and_incidents.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record ModificarAsignacionRequest(
+
+        @NotBlank(message = "La ubicación es obligatoria")
+        String ubicacionId,
+
+        @NotBlank(message = "El tipo de ubicación es obligatorio")
+        String tipoUbicacion,
+
+        @Size(max = 5000, message = "Las observaciones son demasiado largas")
+        String observaciones
+) {
+}

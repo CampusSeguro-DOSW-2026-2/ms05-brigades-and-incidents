@@ -463,23 +463,32 @@ class ConsultaIncidentesServiceTest {
     }
 
     @Test
-    void auditorNoPuedeConsultarListadoDeIncidentes() {
+    void auditorPuedeConsultarListadoDeIncidentes() {
         when(usuarioClient.consultarUsuario("AUDITOR-001"))
-                .thenReturn(crearUsuario(
-                        "AUDITOR-001",
-                        List.of("AUDITOR")
-                ));
+                .thenReturn(crearUsuario("AUDITOR-001", List.of("AUDITOR")));
+        Incidente incidente = crearIncidente("RESUELTO");
+        when(incidenteRepository.findAll(
+                ArgumentMatchers.<Specification<Incidente>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(incidente)));
 
-        assertThrows(
-                ResponseStatusException.class,
-                () -> service.consultarIncidentes(
-                        EVENTO_ID,
-                        filtrosVacios(),
-                        "AUDITOR-001"
-                )
-        );
+        Page<?> resultado = service.consultarIncidentes(EVENTO_ID, filtrosVacios(), "AUDITOR-001");
 
-        verifyNoInteractions(incidenteRepository);
+        assertEquals(1, resultado.getTotalElements());
+    }
+
+    @Test
+    void auditorPuedeConsultarDetalleDelIncidente() {
+        when(usuarioClient.consultarUsuario("AUDITOR-001"))
+                .thenReturn(crearUsuario("AUDITOR-001", List.of("AUDITOR")));
+        Incidente incidente = crearIncidente("RESUELTO");
+        when(incidenteRepository.findByIdAndEventoId(INCIDENTE_ID, EVENTO_ID))
+                .thenReturn(Optional.of(incidente));
+        when(evidenciaRepository.findByIncidenteId(INCIDENTE_ID)).thenReturn(List.of());
+
+        var resultado = service.consultarDetalleIncidente(EVENTO_ID, INCIDENTE_ID, "AUDITOR-001");
+
+        assertEquals(INCIDENTE_ID, resultado.idIncidente());
     }
 
     @Test

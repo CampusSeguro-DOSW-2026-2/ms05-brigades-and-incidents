@@ -1,23 +1,61 @@
 
+name: ms05
+
 services:
-  ms05-postgres:
+  db:
     image: postgres:17-alpine
     container_name: ms05-brigades-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: brigades_incidents_db
-      POSTGRES_USER: campusseguro
-      POSTGRES_PASSWORD: ms05_dev_password
+      POSTGRES_DB: ${DB_NAME:?Falta DB_NAME}
+      POSTGRES_USER: ${DB_USER:?Falta DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD}
     ports:
       - "5435:5432"
     volumes:
-      - ms05_postgres_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ms05_prod_pgdata:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d:ro
+      - ../database/init:/database-init:ro
+      - ../database/migrations:/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U campusseguro -d brigades_incidents_db"]
-      interval: 5s
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 8
+    networks:
+      - ms05_internal
+
+  backend:
+    image: ghcr.io/campusseguro-dosw-2026-2/ms05-brigades-and-incidents-api:restclient-fix
+    container_name: ms05-brigades-backend
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_JPA_SHOW_SQL: "false"
+      MS05_GATEWAY_URL: ${GATEWAY_URL}
+      GW_SERVICE_KEY_MS05: ${GATEWAY_SERVICE_KEY}
+      GATEWAY_SYSTEM_USER_: ${GATEWAY_SYSTEM_USER_}
+      EVIDENCIAS_DIRECTORIO: /app/uploads/evidencias
+      SERVER_PORT: 8085
+    ports:
+      - "8085:8085"
+    volumes:
+      - ms05_evidencias:/app/uploads/evidencias
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ms05_internal
 
 volumes:
-  ms05_postgres_data:
+  ms05_prod_pgdata:
+  ms05_evidencias:
+
+networks:
+  ms05_internal:
+    driver: bridge

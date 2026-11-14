@@ -149,9 +149,9 @@ public class ConsultaIncidentesService {
                     )
             );
         } else {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El usuario no tiene permisos para consultar incidentes."
+            // Cualquier otro miembro de la comunidad consulta solo las solicitudes que él reportó.
+            specification = specification.and(
+                    IncidenteSpecification.reportadosPor(usuarioId)
             );
         }
 
@@ -401,10 +401,11 @@ public class ConsultaIncidentesService {
                         "No tiene permisos para consultar este incidente."
                 );
             }
-        } else {
+        } else if (!usuarioId.equals(incidente.getReportanteId())) {
+            // Los demás usuarios solo consultan las solicitudes que reportaron.
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "El usuario no tiene permisos para consultar incidentes."
+                    "No tiene permisos para consultar este incidente."
             );
         }
 

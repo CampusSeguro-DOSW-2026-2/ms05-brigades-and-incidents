@@ -443,23 +443,73 @@ class ConsultaIncidentesServiceTest {
     }
 
     @Test
-    void usuarioSinRolPermitidoNoPuedeConsultar() {
-        when(usuarioClient.consultarUsuario("USUARIO-001"))
-                .thenReturn(crearUsuario(
-                        "USUARIO-001",
-                        List.of("USUARIO")
-                ));
+    void estudianteConsultaSoloSusPropiasSolicitudes() {
+        when(usuarioClient.consultarUsuario("ESTUDIANTE-001"))
+                .thenReturn(crearUsuario("ESTUDIANTE-001", List.of("ESTUDIANTE")));
+
+        Incidente incidente = crearIncidente("REPORTADO");
+
+        when(incidenteRepository.findAll(
+                ArgumentMatchers.<Specification<Incidente>>any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(incidente)));
+
+        Page<?> resultado = service.consultarIncidentes(
+                EVENTO_ID,
+                filtrosVacios(),
+                "ESTUDIANTE-001"
+        );
+
+        // El filtro "reportados por el usuario" lo aplica la especificación en la base de datos
+        assertEquals(1, resultado.getTotalElements());
+        verify(incidenteRepository).findAll(
+                ArgumentMatchers.<Specification<Incidente>>any(),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void estudiantePuedeConsultarDetalleDeSuSolicitud() {
+        // crearIncidente deja como reportante a BRIGADISTA_ID; aquí ese usuario es un estudiante
+        when(usuarioClient.consultarUsuario(BRIGADISTA_ID))
+                .thenReturn(crearUsuario(BRIGADISTA_ID, List.of("ESTUDIANTE")));
+
+        Incidente incidente = crearIncidente("REPORTADO");
+
+        when(incidenteRepository.findByIdAndEventoId(INCIDENTE_ID, EVENTO_ID))
+                .thenReturn(Optional.of(incidente));
+        when(evidenciaRepository.findByIncidenteId(INCIDENTE_ID))
+                .thenReturn(List.of());
+
+        var resultado = service.consultarDetalleIncidente(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                BRIGADISTA_ID
+        );
+
+        assertEquals(INCIDENTE_ID, resultado.idIncidente());
+    }
+
+    @Test
+    void estudianteNoPuedeConsultarSolicitudAjena() {
+        when(usuarioClient.consultarUsuario("ESTUDIANTE-001"))
+                .thenReturn(crearUsuario("ESTUDIANTE-001", List.of("ESTUDIANTE")));
+
+        Incidente incidente = crearIncidente("REPORTADO");
+
+        when(incidenteRepository.findByIdAndEventoId(INCIDENTE_ID, EVENTO_ID))
+                .thenReturn(Optional.of(incidente));
 
         assertThrows(
                 ResponseStatusException.class,
-                () -> service.consultarIncidentes(
+                () -> service.consultarDetalleIncidente(
                         EVENTO_ID,
-                        filtrosVacios(),
-                        "USUARIO-001"
+                        INCIDENTE_ID,
+                        "ESTUDIANTE-001"
                 )
         );
 
-        verifyNoInteractions(incidenteRepository);
+        verifyNoInteractions(evidenciaRepository);
     }
 
     @Test

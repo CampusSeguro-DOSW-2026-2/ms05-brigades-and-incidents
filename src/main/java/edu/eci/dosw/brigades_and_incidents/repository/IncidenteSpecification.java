@@ -63,6 +63,15 @@ public class IncidenteSpecification {
         };
     }
 
+    /**
+     * Solo los incidentes que reportó el usuario: así cualquier miembro de la comunidad ve sus propias
+     * solicitudes de ayuda.
+     */
+    public static Specification<Incidente> reportadosPor(String usuarioId) {
+        return (root, query, cb) ->
+                cb.equal(root.get("reportanteId"), usuarioId);
+    }
+
     public static Specification<Incidente> visiblesParaBrigadista(
             String brigadistaId,
             List<String> ubicacionesAsignadas

@@ -28,7 +28,8 @@ public class BuscarBrigadistaController {
     public BusquedaBrigadistasResponse buscarBrigadistas(
             @RequestHeader("X-User-Id") String usuarioId,
             @RequestHeader("X-User-Role") String rolUsuario,
-            @RequestParam String nombreBrigadista
+            // Sin nombre (o vacío) devuelve todos los brigadistas, activos o no
+            @RequestParam(required = false) String nombreBrigadista
     ) {
         validarCoordinador(usuarioId, rolUsuario);
 

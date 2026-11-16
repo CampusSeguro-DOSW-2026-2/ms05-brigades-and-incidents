@@ -1,5 +1,6 @@
 package edu.eci.dosw.brigades_and_incidents.controller;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.dto.ConsultaIncidentesRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResumenDTO;
 import edu.eci.dosw.brigades_and_incidents.security.SecurityConfig;
@@ -51,7 +52,7 @@ class IncidenteConsultaPaginadaTest {
                 .thenReturn(new PageImpl<>(incidentes, PageRequest.of(1, 5), 12));
 
         mockMvc.perform(get(URL).param("page", "1").param("size", "5")
-                        .header("X-User-Id", "usuario-1").header("X-User-Role", "COORDINADOR"))
+                        .header("X-User-Id", "usuario-1").header("X-User-Permission", PermisosPrueba.cabecera("COORDINADOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contenido.length()").value(5))
                 .andExpect(jsonPath("$.page").value(1))
@@ -72,7 +73,7 @@ class IncidenteConsultaPaginadaTest {
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 3), 0));
 
         mockMvc.perform(get(URL).param("pagina", "2").param("tamanio", "3")
-                        .header("X-User-Id", "usuario-1").header("X-User-Role", "BRIGADISTA"))
+                        .header("X-User-Id", "usuario-1").header("X-User-Permission", PermisosPrueba.cabecera("BRIGADISTA")))
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ConsultaIncidentesRequest> filtros = ArgumentCaptor.forClass(ConsultaIncidentesRequest.class);

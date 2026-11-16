@@ -22,7 +22,7 @@ import java.util.UUID;
 public class UbicacionClientMs02 implements UbicacionClient {
 
     private static final List<String> CABECERAS_PROPAGADAS =
-            List.of("X-User-Id", "X-User-Role", "X-Correlation-ID");
+            List.of("X-User-Id", "X-User-Role", "X-User-Permission", "X-Correlation-ID");
 
     private final RestClient restClient;
 
@@ -39,8 +39,8 @@ public class UbicacionClientMs02 implements UbicacionClient {
     }
 
     /**
-     * MS02 autoriza por la identidad del usuario: se propagan sin cambios X-User-Id, X-User-Role y
-     * X-Correlation-ID de la solicitud en curso (Estándares §5).
+     * MS02 autoriza por la identidad del usuario: se propagan sin cambios X-User-Id, X-User-Role,
+     * X-User-Permission y X-Correlation-ID de la solicitud en curso (Estándares §5).
      */
     private static void propagarIdentidad(HttpHeaders headers) {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos) {

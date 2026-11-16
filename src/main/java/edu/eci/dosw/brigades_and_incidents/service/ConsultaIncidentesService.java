@@ -18,6 +18,7 @@ import edu.eci.dosw.brigades_and_incidents.repository.EvidenciaIncidenteReposito
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteSpecification;
 import edu.eci.dosw.brigades_and_incidents.repository.PrioridadIncidenteRepository;
+import edu.eci.dosw.brigades_and_incidents.security.Permisos;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -36,17 +37,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class ConsultaIncidentesService {
 
-    private static final String ROL_COORDINADOR = "COORDINADOR";
-    private static final String ROL_ORGANIZADOR = "ORGANIZADOR";
-    private static final String ROL_BRIGADISTA = "BRIGADISTA";
-    private static final String ROL_AUDITOR = "AUDITOR";
 
     private final IncidenteRepository incidenteRepository;
     private final UsuarioClient usuarioClient;
@@ -124,8 +119,6 @@ public class ConsultaIncidentesService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        Set<String> roles = obtenerRoles(usuario);
-
         Specification<Incidente> specification =
                 Specification.where(
                         IncidenteSpecification.porEvento(eventoId)
@@ -133,12 +126,10 @@ public class ConsultaIncidentesService {
                         IncidenteSpecification.noEliminados()
                 );
 
-        if (roles.contains(ROL_COORDINADOR) || roles.contains(ROL_ORGANIZADOR)
-                || roles.contains(ROL_AUDITOR)) {
+        if (Permisos.esGestor()) {
             // El coordinador y el organizador pueden consultar todos los
-            // incidentes no eliminados del evento; el auditor, en solo
-            // lectura (Matriz Rol-Permiso, ms05:incident:read).
-        } else if (roles.contains(ROL_BRIGADISTA)) {
+            // incidentes no eliminados del evento.
+        } else if (Permisos.tiene(Permisos.PANEL_VER_PROPIO)) {
             List<String> ubicacionesAsignadas =
                     obtenerUbicacionesAsignadas(usuarioId, eventoId);
 
@@ -148,6 +139,8 @@ public class ConsultaIncidentesService {
                             ubicacionesAsignadas
                     )
             );
+        } else if (Permisos.tiene(Permisos.INCIDENTE_VER)) {
+            // El auditor consulta todos los incidentes, en solo lectura (ms05:incident:read).
         } else {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -359,8 +352,6 @@ public class ConsultaIncidentesService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        Set<String> roles = obtenerRoles(usuario);
-
         Incidente incidente = incidenteRepository
                 .findByIdAndEventoId(incidenteId, eventoId)
                 .orElseThrow(() ->
@@ -377,12 +368,10 @@ public class ConsultaIncidentesService {
             );
         }
 
-        if (roles.contains(ROL_COORDINADOR) || roles.contains(ROL_ORGANIZADOR)
-                || roles.contains(ROL_AUDITOR)) {
+        if (Permisos.esGestor()) {
             // El coordinador y el organizador pueden consultar todos los
-            // incidentes no eliminados del evento; el auditor, en solo
-            // lectura (Matriz Rol-Permiso, ms05:incident:read).
-        } else if (roles.contains(ROL_BRIGADISTA)) {
+            // incidentes no eliminados del evento.
+        } else if (Permisos.tiene(Permisos.PANEL_VER_PROPIO)) {
             List<String> ubicacionesAsignadas =
                     obtenerUbicacionesAsignadas(usuarioId, eventoId);
 
@@ -401,6 +390,8 @@ public class ConsultaIncidentesService {
                         "No tiene permisos para consultar este incidente."
                 );
             }
+        } else if (Permisos.tiene(Permisos.INCIDENTE_VER)) {
+            // El auditor consulta todos los incidentes, en solo lectura (ms05:incident:read).
         } else {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -459,10 +450,7 @@ public class ConsultaIncidentesService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        Set<String> roles = obtenerRoles(usuario);
-
-        if (!roles.contains(ROL_COORDINADOR)
-                || roles.contains(ROL_AUDITOR)) {
+        if (!Permisos.tiene(Permisos.ASISTENCIA_ASIGNAR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "Solo un coordinador puede eliminar incidentes."
@@ -541,22 +529,6 @@ public class ConsultaIncidentesService {
                     "El usuario se encuentra inactivo."
             );
         }
-    }
-
-    /**
-     * Normaliza los roles recibidos desde MS01.
-     */
-    private Set<String> obtenerRoles(
-            UsuarioClient.UsuarioExterno usuario
-    ) {
-        if (usuario.roles() == null) {
-            return Set.of();
-        }
-
-        return usuario.roles().stream()
-                .filter(rol -> rol != null && !rol.isBlank())
-                .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
-                .collect(Collectors.toSet());
     }
 
     /**

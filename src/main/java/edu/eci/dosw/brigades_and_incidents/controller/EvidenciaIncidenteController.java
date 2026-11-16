@@ -26,9 +26,9 @@ public class EvidenciaIncidenteController {
         this.evidenciaService = evidenciaService;
     }
 
-    // Puede adjuntar quien puede registrar incidentes (todos menos AUDITOR); el servicio exige ser el dueño del
+    // Puede adjuntar quien puede registrar incidentes (ms05:incident:report); el servicio exige ser el dueño del
     // incidente o un brigadista activo.
-    @PreAuthorize("hasAnyRole('ESTUDIANTE', 'PROFESOR', 'ADMINISTRATIVO', 'BRIGADISTA', 'COORDINADOR', 'ORGANIZADOR', 'ADMIN')")
+    @PreAuthorize("hasAuthority('ms05:incident:report')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EvidenciaIncidenteResponse> cargarEvidencia(
             @PathVariable String eventoId,
@@ -49,7 +49,7 @@ public class EvidenciaIncidenteController {
                 .body(response);
     }
 
-    @PreAuthorize("hasAnyRole('COORDINADOR', 'ORGANIZADOR', 'BRIGADISTA', 'AUDITOR')")
+    @PreAuthorize("hasAuthority('ms05:incident:read')")
     @GetMapping
     public ResponseEntity<List<EvidenciaIncidenteResponse>> listarEvidencias(
             @PathVariable String eventoId,

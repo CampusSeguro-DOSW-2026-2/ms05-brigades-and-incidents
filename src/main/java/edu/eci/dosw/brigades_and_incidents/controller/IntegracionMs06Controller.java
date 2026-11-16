@@ -31,7 +31,7 @@ public class IntegracionMs06Controller {
     }
 
     // Actualizar el estado operativo de un evento desde MS06.
-    @PreAuthorize("hasRole('SERVICE_MS06')")
+    @PreAuthorize("hasAuthority('SERVICE_MS06')")
     @PutMapping("/{eventoId}/estado")
     public ResponseEntity<Void> actualizarEstado(
             @PathVariable String eventoId,
@@ -42,7 +42,7 @@ public class IntegracionMs06Controller {
     }
 
     // Consultar brigadistas de un evento desde MS06.
-    @PreAuthorize("hasRole('SERVICE_MS06')")
+    @PreAuthorize("hasAuthority('SERVICE_MS06')")
     @GetMapping("/{eventoId}/brigadistas")
     public ResponseEntity<BrigadistasEventoResponse> consultarBrigadistas(
             @PathVariable String eventoId
@@ -53,7 +53,7 @@ public class IntegracionMs06Controller {
     }
 
     // Consultar indicadores de un evento desde MS06.
-    @PreAuthorize("hasRole('SERVICE_MS06')")
+    @PreAuthorize("hasAuthority('SERVICE_MS06')")
     @GetMapping("/{eventoId}/indicadores")
     public ResponseEntity<IndicadoresEventoResponse> consultarIndicadores(
             @PathVariable String eventoId

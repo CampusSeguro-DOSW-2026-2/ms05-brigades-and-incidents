@@ -1,5 +1,6 @@
 package edu.eci.dosw.brigades_and_incidents.controller;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.dto.AsignacionResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.ModificarAsignacionRequest;
@@ -68,7 +69,7 @@ class AsignacionBrigadistasControllerTest {
     ) {
         return solicitud
                 .header("X-User-Id", usuarioId)
-                .header("X-User-Role", rol);
+                .header("X-User-Permission", PermisosPrueba.cabecera(rol));
     }
 
     @Test

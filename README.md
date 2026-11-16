@@ -16,14 +16,21 @@ Detrás del API Gateway, con estos prefijos:
 | `/api/v1/bei/eventos/{eventoId}/**` | Rutas internas de MS06 (estado, brigadistas, indicadores) |
 | `/api/v1/bei/auditoria/**` | Registro de auditoría de MS05 |
 
-* **Identidad:** el Gateway envía `X-User-Id` y `X-User-Role` (roles separados por coma, p. ej.
-  `BRIGADISTA,ESTUDIANTE`). Sin ellos, la respuesta es `401`.
+* **Identidad y autorización:** el Gateway envía `X-User-Id` y `X-User-Permission` (los permisos efectivos del
+  usuario, separados por coma, p. ej. `ms05:incident:read,ms05:panel:read_own`). MS05 autoriza solo con los permisos;
+  `X-User-Role` no se lee. Sin identidad o sin permisos válidos, la respuesta es `401`; con identidad pero sin el
+  permiso exigido, `403`.
+* **Permisos de MS05:** `ms05:brigadier:assign` (asignaciones, búsqueda y estado de brigadistas),
+  `ms05:panel:read_own` (panel y asignaciones propias), `ms05:assistance:assign` (cerrar y eliminar incidentes),
+  `ms05:assistance:update_status` (iniciar atención y resolver), `ms05:incident:report` (registrar incidentes y adjuntar
+  evidencias), `ms05:incident:read` (consultas, historial y evidencias), `ms05:incident:update` (editar incidentes) y
+  `ms08:audit:read` (consulta de auditoría).
 * **Rutas internas de MS06:** se autorizan por `X-Service-Name: ms06`, que el Gateway deriva de la clave de servicio
-  de MS06. No existe un rol de servicio en `X-User-Role`.
+  de MS06. No viaja como permiso de usuario.
 * **Errores:** todos salen con el `ErrorResponse` de los Estándares: `status`, `codigo`, `mensaje`, `errores` y
   `correlation_id`.
 * **Llamadas a MS01 y MS02:** siempre a través del Gateway (`MS05_GATEWAY_URL`), con la clave `GW_SERVICE_KEY_MS05`.
-  A MS02 se le propagan `X-User-Id`, `X-User-Role` y `X-Correlation-ID`.
+  A MS02 se le propagan `X-User-Id`, `X-User-Role`, `X-User-Permission` y `X-Correlation-ID`.
 * **Health:** `GET /actuator/health` responde `{"status":"UP"}`. Solo se consulta dentro de la VM; el Gateway no lo
   enruta.
 

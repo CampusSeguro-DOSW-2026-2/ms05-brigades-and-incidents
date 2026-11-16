@@ -11,6 +11,7 @@ import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.exception.Ms01IntegrationException;
 import edu.eci.dosw.brigades_and_incidents.mapper.IncidenteMapper;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
+import edu.eci.dosw.brigades_and_incidents.security.Permisos;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,17 +25,6 @@ import java.util.stream.Collectors;
 @Service
 public class IncidenteService {
 
-    private static final Set<String> ROLES_USUARIO_GENERAL = Set.of(
-            "ESTUDIANTE",
-            "PROFESOR",
-            "ADMINISTRATIVO",
-            "COORDINADOR",
-            "ORGANIZADOR",
-            "ADMIN"
-    );
-
-    private static final String ROL_BRIGADISTA = "BRIGADISTA";
-    private static final String ROL_AUDITOR = "AUDITOR";
 
     private final IncidenteRepository incidenteRepository;
     private final HistorialIncidenteRepository historialRepository;
@@ -90,16 +80,9 @@ public class IncidenteService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        Set<String> roles = usuario.roles() == null
-                ? Set.of()
-                : usuario.roles().stream()
-                        .filter(rol -> rol != null && !rol.isBlank())
-                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
-                        .collect(Collectors.toSet());
+        validarPermisosRegistro();
 
-        validarPermisosRegistro(roles);
-
-        boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
+        boolean esBrigadista = Permisos.tiene(Permisos.PANEL_VER_PROPIO);
 
         String nombreAfectado;
 
@@ -263,38 +246,19 @@ public class IncidenteService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        Set<String> roles = usuario.roles() == null
-                ? Set.of()
-                : usuario.roles().stream()
-                        .filter(rol -> rol != null && !rol.isBlank())
-                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
-                        .collect(Collectors.toSet());
-
-        if (roles.contains(ROL_AUDITOR)) {
+        if (!Permisos.tieneAlguno(Permisos.INCIDENTE_ACTUALIZAR, Permisos.INCIDENTE_REPORTAR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Los usuarios con rol auditor no pueden editar incidentes."
+                    "El usuario no tiene permisos para editar incidentes."
             );
         }
 
         boolean esPropietario =
                 incidente.getReportanteId().equals(usuarioId);
 
-        boolean esUsuarioGeneral = roles.stream()
-                .anyMatch(ROLES_USUARIO_GENERAL::contains);
+        boolean esBrigadista = Permisos.tiene(Permisos.PANEL_VER_PROPIO);
 
-        boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
-
-        if (esPropietario) {
-
-            if (!esUsuarioGeneral && !esBrigadista) {
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "El usuario no tiene permisos para editar este incidente."
-                );
-            }
-
-        } else {
+        if (!esPropietario) {
 
             if (!esBrigadista) {
                 throw new ResponseStatusException(
@@ -353,24 +317,12 @@ public class IncidenteService {
         }
     }
 
-    private void validarPermisosRegistro(Set<String> roles) {
+    private void validarPermisosRegistro() {
 
-        if (roles.contains(ROL_AUDITOR)) {
+        if (!Permisos.tiene(Permisos.INCIDENTE_REPORTAR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Los usuarios con rol auditor no pueden registrar incidentes."
-            );
-        }
-
-        boolean usuarioGeneralAutorizado = roles.stream()
-                .anyMatch(ROLES_USUARIO_GENERAL::contains);
-
-        boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
-
-        if (!usuarioGeneralAutorizado && !esBrigadista) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El usuario no tiene un rol autorizado para registrar incidentes."
+                    "El usuario no tiene permiso para registrar incidentes (ms05:incident:report)."
             );
         }
     }
@@ -494,7 +446,7 @@ public class IncidenteService {
                             .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
                             .collect(Collectors.toSet());
 
-            if (roles.contains(ROL_BRIGADISTA)) {
+            if (roles.contains("BRIGADISTA")) {
                 return brigadistaId;
             }
         }

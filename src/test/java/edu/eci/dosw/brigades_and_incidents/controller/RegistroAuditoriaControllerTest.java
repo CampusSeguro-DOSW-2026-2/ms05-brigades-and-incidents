@@ -1,6 +1,7 @@
 
 package edu.eci.dosw.brigades_and_incidents.controller;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.entity.RegistroAuditoria;
 import edu.eci.dosw.brigades_and_incidents.entity.TipoRegistroAuditoria;
 import edu.eci.dosw.brigades_and_incidents.security.SecurityConfig;
@@ -35,7 +36,7 @@ class RegistroAuditoriaControllerTest {
     private MockHttpServletRequestBuilder solicitudAuditor(String url) {
         return get(url)
                 .header("X-User-Id", "auditor-123")
-                .header("X-User-Role", "AUDITOR");
+                .header("X-User-Permission", PermisosPrueba.cabecera("AUDITOR"));
     }
 
     private RegistroAuditoria crearRegistro() {

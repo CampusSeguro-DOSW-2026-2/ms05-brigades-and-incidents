@@ -1,5 +1,6 @@
 package edu.eci.dosw.brigades_and_incidents.controller;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.security.SecurityConfig;
 import edu.eci.dosw.brigades_and_incidents.service.ActivarBrigadistaService;
 import edu.eci.dosw.brigades_and_incidents.service.AsignacionBrigadistasService;
@@ -66,7 +67,7 @@ class PermisosOrganizadorYEvidenciasTest {
     private EvidenciaIncidenteService evidenciaService;
 
     private static <B extends AbstractMockHttpServletRequestBuilder<B>> B como(B solicitud, String roles) {
-        return solicitud.header("X-User-Id", "usuario-1").header("X-User-Role", roles);
+        return solicitud.header("X-User-Id", "usuario-1").header("X-User-Permission", PermisosPrueba.cabecera(roles));
     }
 
     @Test

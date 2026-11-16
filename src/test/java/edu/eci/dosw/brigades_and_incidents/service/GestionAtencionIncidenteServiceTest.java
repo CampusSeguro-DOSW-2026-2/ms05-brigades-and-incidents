@@ -1,11 +1,13 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.AsignarResponsableRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +59,11 @@ class GestionAtencionIncidenteServiceTest {
     private static final String NUEVO_BRIGADISTA_ID = "BRIGADISTA-002";
     private static final String UBICACION_ID = "EDIF-001";
     private static final String COORDINADOR_ID = "COORDINADOR-001";
+
+    @AfterEach
+    void limpiarSeguridad() {
+        PermisosPrueba.limpiar();
+    }
 
     @BeforeEach
     void configurar() {
@@ -134,6 +141,7 @@ class GestionAtencionIncidenteServiceTest {
     }
 
     private void prepararCoordinador(String actorId, String rol) {
+        PermisosPrueba.autenticarComo(rol);
         when(usuarioClient.consultarUsuario(actorId))
                 .thenReturn(crearUsuario(actorId, List.of(rol)));
     }
@@ -212,6 +220,7 @@ class GestionAtencionIncidenteServiceTest {
         when(incidenteRepository.findById(INCIDENTE_ID))
                 .thenReturn(Optional.of(incidente));
 
+        PermisosPrueba.autenticarComo("AUDITOR");
         when(usuarioClient.consultarUsuario("AUDITOR-001"))
                 .thenReturn(crearUsuario(
                         "AUDITOR-001",
@@ -247,6 +256,7 @@ class GestionAtencionIncidenteServiceTest {
         when(incidenteRepository.findById(INCIDENTE_ID))
                 .thenReturn(Optional.of(incidente));
 
+        PermisosPrueba.autenticarComo("AUDITOR");
         when(usuarioClient.consultarUsuario("AUDITOR-001"))
                 .thenReturn(crearUsuario(
                         "AUDITOR-001",
@@ -284,6 +294,7 @@ class GestionAtencionIncidenteServiceTest {
         when(incidenteRepository.findById(INCIDENTE_ID))
                 .thenReturn(Optional.of(incidente));
 
+        PermisosPrueba.autenticarComo("BRIGADISTA");
         when(usuarioClient.consultarUsuario(BRIGADISTA_ID))
                 .thenReturn(crearUsuario(
                         BRIGADISTA_ID,
@@ -336,6 +347,7 @@ class GestionAtencionIncidenteServiceTest {
         when(incidenteRepository.findById(INCIDENTE_ID))
                 .thenReturn(Optional.of(incidente));
 
+        PermisosPrueba.autenticarComo("BRIGADISTA");
         when(usuarioClient.consultarUsuario(BRIGADISTA_ID))
                 .thenReturn(crearUsuario(
                         BRIGADISTA_ID,
@@ -443,31 +455,22 @@ class GestionAtencionIncidenteServiceTest {
     }
 
     @Test
-    void administradorPuedeAsignarResponsable() {
-        Incidente incidente = crearIncidente();
-
+    void administradorSinPermisosDeCoordinacionNoPuedeAsignarResponsable() {
         prepararCoordinador("ADMIN-001", "ADMIN");
-        prepararBrigadistaValido(NUEVO_BRIGADISTA_ID, incidente);
-        prepararGuardadoHistorial();
 
-        when(incidenteRepository.findById(INCIDENTE_ID))
-                .thenReturn(Optional.of(incidente));
+        ResponseStatusException exception =
+                ejecutarAsignacionConError(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new AsignarResponsableRequest(
+                                NUEVO_BRIGADISTA_ID,
+                                "Asignación por administrador"
+                        ),
+                        "ADMIN-001"
+                );
 
-        when(incidenteRepository.save(incidente))
-                .thenReturn(incidente);
-
-        var resultado = service.asignarResponsable(
-                EVENTO_ID,
-                INCIDENTE_ID,
-                new AsignarResponsableRequest(
-                        NUEVO_BRIGADISTA_ID,
-                        "Asignación por administrador"
-                ),
-                "ADMIN-001"
-        );
-
-        assertNotNull(resultado);
-        verify(incidenteRepository).save(incidente);
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verify(incidenteRepository, never()).save(any());
     }
 
     @Test

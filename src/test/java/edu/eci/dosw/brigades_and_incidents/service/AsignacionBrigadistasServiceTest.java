@@ -334,6 +334,8 @@ class AsignacionBrigadistasServiceTest {
     @Test
     void noDebeRetirarAlUltimoBrigadistaConIncidentesPendientes() {
         UUID id = UUID.randomUUID();
+        // Deja la asignación vigente que el servicio busca con findById; sin ella lanzaría "no encontrada"
+        prepararAsignacion(id);
 
         Incidente incidente = mock(Incidente.class);
         EstadoIncidente estadoIncidente = mock(EstadoIncidente.class);

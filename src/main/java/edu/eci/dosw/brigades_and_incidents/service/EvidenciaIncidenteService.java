@@ -11,6 +11,7 @@ import edu.eci.dosw.brigades_and_incidents.exception.EvidenciaIncidenteException
 import edu.eci.dosw.brigades_and_incidents.repository.BrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EvidenciaIncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
+import edu.eci.dosw.brigades_and_incidents.security.Permisos;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -21,10 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class EvidenciaIncidenteService {
@@ -37,23 +36,6 @@ public class EvidenciaIncidenteService {
             "video/mp4"
     );
 
-    private static final Set<String> ROLES_USUARIO_GENERAL = Set.of(
-            "ESTUDIANTE",
-            "PROFESOR",
-            "ADMINISTRATIVO",
-            "COORDINADOR",
-            "ORGANIZADOR",
-            "ADMIN"
-    );
-
-    private static final Set<String> ROLES_COORDINADOR = Set.of(
-            "COORDINADOR",
-            "ORGANIZADOR",
-            "ADMIN"
-    );
-
-    private static final String ROL_BRIGADISTA = "BRIGADISTA";
-    private static final String ROL_AUDITOR = "AUDITOR";
     private static final String ESTADO_CERRADO = "CERRADO";
     private static final String ESTADO_ACTIVO = "ACTIVO";
 
@@ -236,13 +218,11 @@ public class EvidenciaIncidenteService {
 
         validarUsuarioActivo(usuario);
 
-        Set<String> roles = obtenerRoles(usuario);
-
-        // Los auditores no pueden cargar evidencias.
-        if (roles.contains(ROL_AUDITOR)) {
+        // Cargar evidencias exige poder registrar incidentes (ms05:incident:report): el auditor no puede.
+        if (!Permisos.tiene(Permisos.INCIDENTE_REPORTAR)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Los usuarios con rol auditor no pueden cargar evidencias."
+                    "El usuario no tiene permiso para cargar evidencias."
             );
         }
 
@@ -250,21 +230,9 @@ public class EvidenciaIncidenteService {
                 incidente.getReportanteId()
         );
 
-        boolean esUsuarioGeneral = roles.stream()
-                .anyMatch(ROLES_USUARIO_GENERAL::contains);
+        boolean esBrigadista = Permisos.tiene(Permisos.PANEL_VER_PROPIO);
 
-        boolean esBrigadista = roles.contains(ROL_BRIGADISTA);
-
-        if (esPropietario) {
-
-            if (!esUsuarioGeneral && !esBrigadista) {
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "El usuario no tiene permisos para adjuntar evidencias."
-                );
-            }
-
-        } else {
+        if (!esPropietario) {
 
             if (!esBrigadista) {
                 throw new ResponseStatusException(
@@ -285,28 +253,17 @@ public class EvidenciaIncidenteService {
 
         validarUsuarioActivo(usuario);
 
-        Set<String> roles = obtenerRoles(usuario);
-
-        // El auditor puede consultar evidencias.
-        if (roles.contains(ROL_AUDITOR)) {
-            return;
+        if (!Permisos.tiene(Permisos.INCIDENTE_VER)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No tiene permisos para consultar las evidencias del incidente."
+            );
         }
 
-        // El coordinador puede consultar evidencias.
-        if (roles.stream().anyMatch(ROLES_COORDINADOR::contains)) {
-            return;
-        }
-
-        // El brigadista debe estar registrado y activo.
-        if (roles.contains(ROL_BRIGADISTA)) {
+        // El coordinador y el auditor consultan sin más; el brigadista debe estar registrado y activo.
+        if (!Permisos.esGestor() && Permisos.tiene(Permisos.PANEL_VER_PROPIO)) {
             validarBrigadistaActivo(usuarioId);
-            return;
         }
-
-        throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "No tiene permisos para consultar las evidencias del incidente."
-        );
     }
 
     private void validarUsuarioActivo(
@@ -327,18 +284,6 @@ public class EvidenciaIncidenteService {
                     "El usuario se encuentra inactivo."
             );
         }
-    }
-
-    private Set<String> obtenerRoles(
-            UsuarioClient.UsuarioExterno usuario
-    ) {
-
-        return usuario.roles() == null
-                ? Set.of()
-                : usuario.roles().stream()
-                        .filter(rol -> rol != null && !rol.isBlank())
-                        .map(rol -> rol.trim().toUpperCase(Locale.ROOT))
-                        .collect(Collectors.toSet());
     }
 
     private void validarBrigadistaActivo(String usuarioId) {

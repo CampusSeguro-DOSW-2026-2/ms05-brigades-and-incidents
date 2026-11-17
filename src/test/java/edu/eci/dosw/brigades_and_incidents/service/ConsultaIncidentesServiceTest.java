@@ -1,6 +1,7 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.dto.ConsultaIncidentesRequest;
@@ -8,6 +9,7 @@ import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResumenDTO;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,6 +67,11 @@ class ConsultaIncidentesServiceTest {
     private static final String BRIGADISTA_ID = "BRIGADISTA-001";
     private static final String UBICACION_ID = "EDIF-001";
 
+    @AfterEach
+    void limpiarSeguridad() {
+        PermisosPrueba.limpiar();
+    }
+
     @BeforeEach
     void configurar() {
         service = new ConsultaIncidentesService(
@@ -86,6 +93,8 @@ class ConsultaIncidentesServiceTest {
             String usuarioId,
             List<String> roles
     ) {
+        // El actor autorizado es el último usuario preparado: sus permisos son los de sus roles.
+        PermisosPrueba.autenticarComo(String.join(",", roles));
         return new UsuarioClient.UsuarioExterno(
                 usuarioId,
                 "Usuario de prueba",

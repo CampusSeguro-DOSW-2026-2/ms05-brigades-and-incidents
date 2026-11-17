@@ -25,7 +25,7 @@ class BuscarBrigadistaControllerTest {
     }
 
     @Test
-    void debeBuscarBrigadistasComoCoordinador() {
+    void debeBuscarBrigadistas() {
         BusquedaBrigadistasResponse esperada =
                 new BusquedaBrigadistasResponse(
                         "Brigadistas encontrados",
@@ -35,41 +35,17 @@ class BuscarBrigadistaControllerTest {
         when(service.buscarBrigadistas("Paula")).thenReturn(esperada);
 
         BusquedaBrigadistasResponse resultado =
-                controller.buscarBrigadistas(
-                        "coordinador-1",
-                        "COORDINADOR",
-                        "Paula"
-                );
+                controller.buscarBrigadistas("coordinador-1", "Paula");
 
         assertSame(esperada, resultado);
         verify(service).buscarBrigadistas("Paula");
     }
 
     @Test
-    void debeAceptarRolCoordinadorSinImportarMayusculasNiEspacios() {
-        BusquedaBrigadistasResponse esperada =
-                new BusquedaBrigadistasResponse("Sin resultados", List.of());
-
-        when(service.buscarBrigadistas("Ana")).thenReturn(esperada);
-
-        BusquedaBrigadistasResponse resultado =
-                controller.buscarBrigadistas(
-                        "coordinador-1",
-                        " coordinador ",
-                        "Ana"
-                );
-
-        assertSame(esperada, resultado);
-        verify(service).buscarBrigadistas("Ana");
-    }
-
-    @Test
     void debeRechazarUsuarioNulo() {
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> controller.buscarBrigadistas(
-                        null, "COORDINADOR", "Ana"
-                )
+                () -> controller.buscarBrigadistas(null, "Ana")
         );
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
@@ -80,9 +56,7 @@ class BuscarBrigadistaControllerTest {
     void debeRechazarUsuarioVacio() {
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> controller.buscarBrigadistas(
-                        " ", "COORDINADOR", "Ana"
-                )
+                () -> controller.buscarBrigadistas(" ", "Ana")
         );
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
@@ -90,56 +64,12 @@ class BuscarBrigadistaControllerTest {
     }
 
     @Test
-    void debeRechazarRolNulo() {
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> controller.buscarBrigadistas(
-                        "usuario-1", null, "Ana"
-                )
-        );
-
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void debeRechazarRolVacio() {
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> controller.buscarBrigadistas(
-                        "usuario-1", " ", "Ana"
-                )
-        );
-
-        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void debeRechazarUsuarioQueNoEsCoordinador() {
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> controller.buscarBrigadistas(
-                        "brigadista-1", "BRIGADISTA", "Ana"
-                )
-        );
-
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void debeCambiarEstadoComoCoordinador() {
+    void debeCambiarEstado() {
         CambiarEstadoBrigadistaRequest request =
                 new CambiarEstadoBrigadistaRequest("ACTIVO");
 
         assertDoesNotThrow(() ->
-                controller.cambiarEstado(
-                        "brigadista-1",
-                        "coordinador-1",
-                        "COORDINADOR",
-                        request
-                )
+                controller.cambiarEstado("brigadista-1", "coordinador-1", request)
         );
 
         verify(service).cambiarEstado("brigadista-1", "ACTIVO");
@@ -152,28 +82,11 @@ class BuscarBrigadistaControllerTest {
                 () -> controller.cambiarEstado(
                         "brigadista-1",
                         null,
-                        "COORDINADOR",
                         new CambiarEstadoBrigadistaRequest("ACTIVO")
                 )
         );
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void debeRechazarCambioEstadoConRolNoAutorizado() {
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> controller.cambiarEstado(
-                        "brigadista-1",
-                        "usuario-1",
-                        "BRIGADISTA",
-                        new CambiarEstadoBrigadistaRequest("ACTIVO")
-                )
-        );
-
-        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         verifyNoInteractions(service);
     }
 }

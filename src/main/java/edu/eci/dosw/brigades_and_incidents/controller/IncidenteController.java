@@ -40,8 +40,8 @@ public class IncidenteController {
         this.consultaIncidentesService = consultaIncidentesService;
     }
 
-    // Registrar un incidente. Requiere un usuario autenticado.
-    @PreAuthorize("isAuthenticated()")
+    // Registrar un incidente. Requiere ms05:incident:report (todos menos el auditor).
+    @PreAuthorize("hasAuthority('ms05:incident:report')")
     @PostMapping
     public ResponseEntity<IncidenteResponse> registrarIncidente(
             @PathVariable String eventoId,
@@ -55,8 +55,8 @@ public class IncidenteController {
         return ResponseEntity.ok(response);
     }
 
-    // Modificar un incidente. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINADOR')")
+    // Modificar un incidente (descripción). El servicio exige ser el dueño o un brigadista activo.
+    @PreAuthorize("hasAnyAuthority('ms05:incident:update', 'ms05:incident:report')")
     @PutMapping("/{incidenteId}")
     public ResponseEntity<IncidenteResponse> editarIncidente(
             @PathVariable String eventoId,
@@ -76,8 +76,8 @@ public class IncidenteController {
         return ResponseEntity.ok(response);
     }
 
-    // Consultar incidentes. Requiere un usuario autenticado.
-    @PreAuthorize("isAuthenticated()")
+    // Consultar incidentes. Requiere ms05:incident:read.
+    @PreAuthorize("hasAuthority('ms05:incident:read')")
     @GetMapping("/consulta")
     public ResponseEntity<PaginaResponse<IncidenteResumenDTO>> consultarIncidentes(
             @PathVariable String eventoId,
@@ -116,8 +116,8 @@ public class IncidenteController {
         return ResponseEntity.ok(PaginaResponse.de(resultado));
     }
 
-    // Consultar el detalle de un incidente. Requiere autenticación.
-    @PreAuthorize("isAuthenticated()")
+    // Consultar el detalle de un incidente. Requiere ms05:incident:read.
+    @PreAuthorize("hasAuthority('ms05:incident:read')")
     @GetMapping("/{incidenteId}")
     public ResponseEntity<IncidenteDetalleDTO> consultarDetalleIncidente(
             @PathVariable String eventoId,
@@ -137,9 +137,9 @@ public class IncidenteController {
 
     /**
      * Elimina logicamente un incidente resuelto.
-     * Solo los coordinadores pueden realizar esta operación.
+     * Requiere ms05:assistance:assign (coordinador).
      */
-    @PreAuthorize("hasRole('COORDINADOR')")
+    @PreAuthorize("hasAuthority('ms05:assistance:assign')")
     @DeleteMapping("/{incidenteId}")
     public ResponseEntity<Void> eliminarIncidente(
             @PathVariable String eventoId,

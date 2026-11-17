@@ -1,6 +1,5 @@
 package edu.eci.dosw.brigades_and_incidents.client;
 
-import edu.eci.dosw.brigades_and_incidents.client.BrigadistaClient.BrigadistaExterno;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 

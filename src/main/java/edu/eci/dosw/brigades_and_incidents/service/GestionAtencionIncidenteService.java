@@ -13,6 +13,7 @@ import edu.eci.dosw.brigades_and_incidents.dto.ResolverIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
+import edu.eci.dosw.brigades_and_incidents.security.Permisos;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +31,6 @@ public class GestionAtencionIncidenteService {
     private static final Logger LOG = LoggerFactory.getLogger(GestionAtencionIncidenteService.class);
 
     private static final String ROL_BRIGADISTA = "BRIGADISTA";
-
-    private static final Set<String> ROLES_COORDINADOR = Set.of(
-            "COORDINADOR",
-            "ORGANIZADOR"
-    );
 
     private final IncidenteRepository incidenteRepository;
     private final EstadoIncidenteRepository estadoRepository;
@@ -343,33 +339,23 @@ public class GestionAtencionIncidenteService {
 
         Incidente incidente = obtenerIncidente(eventoId, incidenteId);
 
-        UsuarioClient.UsuarioExterno usuario =
-                consultarUsuarioActivo(actorId);
+        consultarUsuarioActivo(actorId);
 
-        Set<String> roles = obtenerRoles(usuario);
-
-        // Los auditores pueden consultar el historial.
-        if (roles.contains("AUDITOR")) {
-            return obtenerHistorial(incidenteId);
+        if (!Permisos.tiene(Permisos.INCIDENTE_VER)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "El usuario no tiene permisos para consultar el historial."
+            );
         }
 
         // Los brigadistas solo pueden consultar incidentes
         // de eventos y ubicaciones donde tengan asignación vigente.
-        if (roles.contains(ROL_BRIGADISTA)) {
+        if (!Permisos.esGestor() && Permisos.tiene(Permisos.PANEL_VER_PROPIO)) {
             validarBrigadistaAsignado(actorId, incidente);
-            return obtenerHistorial(incidenteId);
         }
 
-        // Coordinadores, organizadores y administradores.
-        if (roles.stream().anyMatch(ROLES_COORDINADOR::contains)
-                || roles.contains("ADMIN")) {
-            return obtenerHistorial(incidenteId);
-        }
-
-        throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "El usuario no tiene permisos para consultar el historial."
-        );
+        // Coordinadores, organizadores y auditores consultan sin más.
+        return obtenerHistorial(incidenteId);
     }
 
     private List<HistorialIncidenteResponse> obtenerHistorial(
@@ -472,13 +458,12 @@ public class GestionAtencionIncidenteService {
             String actorId,
             Incidente incidente
     ) {
-        UsuarioClient.UsuarioExterno usuario =
-                consultarUsuarioActivo(actorId);
+        consultarUsuarioActivo(actorId);
 
-        if (!obtenerRoles(usuario).contains(ROL_BRIGADISTA)) {
+        if (!Permisos.tiene(Permisos.ASISTENCIA_ACTUALIZAR_ESTADO)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Solo un brigadista puede realizar esta operación."
+                    "No tiene permiso para cambiar el estado de atención."
             );
         }
 
@@ -499,11 +484,10 @@ public class GestionAtencionIncidenteService {
 
         Set<String> roles = obtenerRoles(usuario);
 
-        if (roles.stream().noneMatch(ROLES_COORDINADOR::contains)
-                && !roles.contains("ADMIN")) {
+        if (!Permisos.esGestor()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "La operación requiere el rol COORDINADOR u ORGANIZADOR."
+                    "La operación requiere un permiso de coordinación (ms05:brigadier:assign o ms05:assistance:assign)."
             );
         }
 

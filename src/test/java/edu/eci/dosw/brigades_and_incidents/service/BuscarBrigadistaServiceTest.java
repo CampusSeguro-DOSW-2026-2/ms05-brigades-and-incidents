@@ -58,25 +58,44 @@ class BuscarBrigadistaServiceTest {
     }
 
     @Test
-    void debeRechazarBusquedaNula() {
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> service.buscarBrigadistas(null)
-        );
+    void sinNombreDebeListarTodosLosBrigadistas() {
+        prepararDosBrigadistas();
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-        verifyNoInteractions(brigadistaClient);
+        BusquedaBrigadistasResponse response = service.buscarBrigadistas(null);
+
+        assertEquals("Brigadistas encontrados", response.mensaje());
+        assertEquals(2, response.resultados().size());
+        assertEquals("Ana", response.resultados().get(0).nombre());
+        assertEquals("ACTIVO", response.resultados().get(0).estado());
+        assertEquals("Carlos", response.resultados().get(1).nombre());
+        assertEquals("INACTIVO", response.resultados().get(1).estado());
     }
 
     @Test
-    void debeRechazarBusquedaVacia() {
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> service.buscarBrigadistas("   ")
-        );
+    void conNombreVacioDebeListarTodosLosBrigadistas() {
+        prepararDosBrigadistas();
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-        verifyNoInteractions(brigadistaClient);
+        BusquedaBrigadistasResponse response = service.buscarBrigadistas("   ");
+
+        assertEquals(2, response.resultados().size());
+    }
+
+    /** Ana (activa) y Carlos (inactivo) son brigadistas; el coordinador no debe aparecer. */
+    private void prepararDosBrigadistas() {
+        when(brigadistaClient.listarBrigadistas()).thenReturn(List.of(
+                new BrigadistaExterno("id-4", "Carlos", "BRIGADISTA"),
+                new BrigadistaExterno("id-1", "Ana", "BRIGADISTA"),
+                new BrigadistaExterno("id-3", "Ana Coordinadora", "COORDINADOR")
+        ));
+        when(estadoRepository.findByNombre("INACTIVO"))
+                .thenReturn(Optional.of(estadoInactivo));
+        when(brigadistaRepository.findByUsuarioIdExterno("id-1"))
+                .thenReturn(Optional.of(new Brigadista("id-1", estadoActivo)));
+        when(brigadistaRepository.findByUsuarioIdExterno("id-4"))
+                .thenReturn(Optional.of(new Brigadista("id-4", estadoInactivo)));
+        when(asignacionRepository.findByBrigadistaIdAndEstado_Nombre(any(), eq("VIGENTE")))
+                .thenReturn(List.of());
+        when(mapper.convertirAsignaciones(any())).thenReturn(List.of());
     }
 
     @Test

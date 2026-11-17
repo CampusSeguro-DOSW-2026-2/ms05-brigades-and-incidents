@@ -1,6 +1,10 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.client.AlertaClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.AsignarResponsableRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.CambioEstadoIncidenteResponse;
@@ -24,6 +28,8 @@ import java.util.UUID;
 @Service
 public class GestionAtencionIncidenteService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(GestionAtencionIncidenteService.class);
+
     private static final String ROL_BRIGADISTA = "BRIGADISTA";
 
     private final IncidenteRepository incidenteRepository;
@@ -33,6 +39,7 @@ public class GestionAtencionIncidenteService {
     private final HistorialIncidenteRepository historialRepository;
     private final UsuarioClient usuarioClient;
     private final IncidenteAuditPublisher auditPublisher;
+    private final AlertaClient alertaClient;
 
     public GestionAtencionIncidenteService(
             IncidenteRepository incidenteRepository,
@@ -41,7 +48,8 @@ public class GestionAtencionIncidenteService {
             AsignacionBrigadistaRepository asignacionRepository,
             HistorialIncidenteRepository historialRepository,
             UsuarioClient usuarioClient,
-            IncidenteAuditPublisher auditPublisher
+            IncidenteAuditPublisher auditPublisher,
+            AlertaClient alertaClient
     ) {
         this.incidenteRepository = incidenteRepository;
         this.estadoRepository = estadoRepository;
@@ -50,6 +58,7 @@ public class GestionAtencionIncidenteService {
         this.historialRepository = historialRepository;
         this.usuarioClient = usuarioClient;
         this.auditPublisher = auditPublisher;
+        this.alertaClient = alertaClient;
     }
 
     /**
@@ -64,7 +73,7 @@ public class GestionAtencionIncidenteService {
             String actorId
     ) {
         validarIdentidad(actorId);
-        validarCoordinador(actorId);
+        Set<String> rolesActor = validarCoordinador(actorId);
 
         if (request == null || request.responsableId() == null
                 || request.responsableId().isBlank()) {
@@ -132,6 +141,8 @@ public class GestionAtencionIncidenteService {
                 "EXITOSO",
                 "Responsable asignado o reasignado: " + responsableNuevo
         );
+
+        notificarAsignacion(actualizado, responsableNuevo, actorId, rolesActor);
 
         return construirRespuesta(
                 actualizado,
@@ -467,14 +478,46 @@ public class GestionAtencionIncidenteService {
         validarBrigadistaAsignado(actorId, incidente);
     }
 
-    private void validarCoordinador(String actorId) {
-        consultarUsuarioActivo(actorId);
+    private Set<String> validarCoordinador(String actorId) {
+        UsuarioClient.UsuarioExterno usuario =
+                consultarUsuarioActivo(actorId);
+
+        Set<String> roles = obtenerRoles(usuario);
 
         if (!Permisos.esGestor()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
                     "La operación requiere un permiso de coordinación (ms05:brigadier:assign o ms05:assistance:assign)."
             );
+        }
+
+        return roles;
+    }
+
+    /**
+     * Avisa por MS03 (correo) al brigadista que quedó como responsable. Un fallo del aviso no deshace
+     * la asignación: se registra y la solicitud sigue asignada.
+     */
+    private void notificarAsignacion(
+            Incidente incidente,
+            String responsableId,
+            String actorId,
+            Set<String> rolesActor
+    ) {
+        try {
+            alertaClient.notificarAsignacion(new AlertaClient.NotificacionAsignacion(
+                    responsableId,
+                    actorId,
+                    rolesActor,
+                    incidente.getEventoId(),
+                    incidente.getId() == null ? null : incidente.getId().toString(),
+                    incidente.getPrioridad() == null ? null : incidente.getPrioridad().getNombre(),
+                    incidente.getUbicacionId(),
+                    incidente.getTipoUbicacion() == null ? null : incidente.getTipoUbicacion().getNombre()
+            ));
+        } catch (RuntimeException exception) {
+            LOG.warn("No se pudo avisar al brigadista {} de la solicitud {}: {}",
+                    responsableId, incidente.getId(), exception.getMessage());
         }
     }
 

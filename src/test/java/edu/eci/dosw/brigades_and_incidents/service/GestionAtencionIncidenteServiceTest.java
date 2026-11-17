@@ -1,6 +1,7 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.client.AlertaClient;
 import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.AsignarResponsableRequest;
@@ -49,6 +50,9 @@ class GestionAtencionIncidenteServiceTest {
     @Mock
     private IncidenteAuditPublisher auditPublisher;
 
+    @Mock
+    private AlertaClient alertaClient;
+
     private GestionAtencionIncidenteService service;
 
     private static final UUID INCIDENTE_ID =
@@ -74,7 +78,8 @@ class GestionAtencionIncidenteServiceTest {
                 asignacionRepository,
                 historialRepository,
                 usuarioClient,
-                auditPublisher
+                auditPublisher,
+                alertaClient
         );
     }
 
@@ -424,6 +429,61 @@ class GestionAtencionIncidenteServiceTest {
                 eq("EXITOSO"),
                 anyString()
         );
+    }
+
+    @Test
+    void asignarResponsableAvisaAlBrigadistaPorMs03() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+        prepararBrigadistaValido(NUEVO_BRIGADISTA_ID, incidente);
+        prepararGuardadoHistorial();
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+        when(incidenteRepository.save(incidente))
+                .thenReturn(incidente);
+
+        service.asignarResponsable(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                new AsignarResponsableRequest(NUEVO_BRIGADISTA_ID, null),
+                COORDINADOR_ID
+        );
+
+        org.mockito.ArgumentCaptor<AlertaClient.NotificacionAsignacion> aviso =
+                org.mockito.ArgumentCaptor.forClass(AlertaClient.NotificacionAsignacion.class);
+        verify(alertaClient).notificarAsignacion(aviso.capture());
+        assertEquals(NUEVO_BRIGADISTA_ID, aviso.getValue().brigadistaId());
+        assertEquals(COORDINADOR_ID, aviso.getValue().actorId());
+        assertTrue(aviso.getValue().actorRoles().contains("COORDINADOR"));
+    }
+
+    @Test
+    void siElAvisoFallaLaAsignacionSeMantiene() {
+        Incidente incidente = crearIncidente();
+
+        prepararCoordinador(COORDINADOR_ID, "COORDINADOR");
+        prepararBrigadistaValido(NUEVO_BRIGADISTA_ID, incidente);
+        prepararGuardadoHistorial();
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+        when(incidenteRepository.save(incidente))
+                .thenReturn(incidente);
+        doThrow(new IllegalStateException("MS03 no responde"))
+                .when(alertaClient).notificarAsignacion(any());
+
+        var resultado = service.asignarResponsable(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                new AsignarResponsableRequest(NUEVO_BRIGADISTA_ID, null),
+                COORDINADOR_ID
+        );
+
+        assertNotNull(resultado);
+        verify(incidente).setBrigadistaResponsableId(NUEVO_BRIGADISTA_ID);
+        verify(incidenteRepository).save(incidente);
     }
 
     @Test

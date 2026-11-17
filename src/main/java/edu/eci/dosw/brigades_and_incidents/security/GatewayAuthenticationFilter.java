@@ -24,7 +24,8 @@ import java.util.Locale;
  * <ul>
  *   <li>X-User-Id y X-User-Permission: el usuario y sus permisos efectivos (la unión de los de sus roles),
  *       separados por coma. Solo cuentan los de formato válido; el resto se ignora. MS05 autoriza únicamente con
- *       permisos: X-User-Role no se lee.</li>
+ *       permisos. X-User-Role no autoriza nada: solo lo usa el panel de gestión de brigadistas para decidir el tipo
+ *       de evento (el coordinador, reales; el organizador, simulacros; ver AlcanceGestion).</li>
  *   <li>X-Service-Name: el servicio que llama con su clave (ms01 … ms08). El Gateway la deriva de la clave,
  *       nadie más puede fijarla; ms06 recibe la autoridad {@link Permisos#SERVICIO_MS06}.</li>
  * </ul>

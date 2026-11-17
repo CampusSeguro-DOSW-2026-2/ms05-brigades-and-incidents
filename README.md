@@ -9,7 +9,7 @@ Detrás del API Gateway, con estos prefijos:
 
 | Prefijo | Qué contiene |
 |---|---|
-| `/api/v1/brigadistas/**` | Activación y búsqueda de brigadistas |
+| `/api/v1/brigadistas/**` | Activación y búsqueda de brigadistas, panel de gestión (`/eventos`, `/eventos/{eventoId}/gestion`, `PUT /eventos/{eventoId}/brigadistas/{brigadistaId}/asignacion`) y auto asignación (`GET /autoasignacion`, `PUT`/`DELETE /autoasignacion/eventos/{eventoId}`) |
 | `/api/v1/asignaciones/**` | Asignaciones de brigadistas a zonas |
 | `/api/v1/responsabilidades/**` | Panel de responsabilidades |
 | `/api/v1/incidentes/eventos/{eventoId}/**` | Incidentes de un evento, su atención y sus evidencias |
@@ -18,8 +18,9 @@ Detrás del API Gateway, con estos prefijos:
 
 * **Identidad y autorización:** el Gateway envía `X-User-Id` y `X-User-Permission` (los permisos efectivos del
   usuario, separados por coma, p. ej. `ms05:incident:read,ms05:panel:read_own`). MS05 autoriza solo con los permisos;
-  `X-User-Role` no se lee. Sin identidad o sin permisos válidos, la respuesta es `401`; con identidad pero sin el
-  permiso exigido, `403`.
+  `X-User-Role` no autoriza nada: solo el panel de gestión de brigadistas lo usa para el tipo de evento (el
+  `COORDINADOR` gestiona eventos reales y el `ORGANIZADOR` simulacros; otro tipo de evento responde `403`). Sin
+  identidad o sin permisos válidos, la respuesta es `401`; con identidad pero sin el permiso exigido, `403`.
 * **Permisos de MS05:** `ms05:brigadier:assign` (asignaciones, búsqueda y estado de brigadistas),
   `ms05:panel:read_own` (panel y asignaciones propias), `ms05:assistance:assign` (cerrar y eliminar incidentes),
   `ms05:assistance:update_status` (iniciar atención y resolver), `ms05:incident:report` (registrar incidentes y adjuntar

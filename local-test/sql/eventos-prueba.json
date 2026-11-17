@@ -1,0 +1,34 @@
+[
+  {
+    "eventoId": "33333333-0000-4000-8000-000000000001",
+    "nombre": "Evacuación por sismo",
+    "tipoEvento": "OTRO",
+    "simulacro": false,
+    "estado": "EN_EJECUCION",
+    "zonas": [
+      { "zonaId": "BLD-A", "nombre": "Edificio A" },
+      { "zonaId": "BLD-B", "nombre": "Edificio B" },
+      { "zonaId": "BLD-C", "nombre": "Edificio C" },
+      { "zonaId": "BLD-D", "nombre": "Edificio D" },
+      { "zonaId": "BLD-G", "nombre": "Edificio G" },
+      { "zonaId": "BLD-L", "nombre": "Edificio L" },
+      { "zonaId": "BLD-COL", "nombre": "Coliseo El Otoño" },
+      { "zonaId": "BLD-ROB", "nombre": "Laboratorio de Robótica" }
+    ]
+  },
+  {
+    "eventoId": "33333333-0000-4000-8000-000000000002",
+    "nombre": "Simulacro general de evacuación",
+    "tipoEvento": "SIMULACRO",
+    "simulacro": true,
+    "estado": "PROGRAMADO",
+    "zonas": [
+      { "zonaId": "BLD-B", "nombre": "Edificio B" },
+      { "zonaId": "BLD-F", "nombre": "Edificio F" },
+      { "zonaId": "BLD-H", "nombre": "Edificio H" },
+      { "zonaId": "BLD-I", "nombre": "Edificio I" },
+      { "zonaId": "BLD-BIB", "nombre": "Biblioteca Jorge Álvarez Lleras" },
+      { "zonaId": "BLD-AM", "nombre": "Aula Máxima" }
+    ]
+  }
+]

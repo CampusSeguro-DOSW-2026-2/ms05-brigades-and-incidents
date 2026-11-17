@@ -1,4 +1,3 @@
-
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.BusquedaBrigadistasResponse;
@@ -26,7 +25,6 @@ public class BuscarBrigadistaController {
     @GetMapping("/buscar")
     public BusquedaBrigadistasResponse buscarBrigadistas(
             @RequestHeader("X-User-Id") String usuarioId,
-            @RequestHeader("X-User-Role") String rolUsuario,
             // Sin nombre (o vacío) devuelve todos los brigadistas, activos o no
             @RequestParam(required = false) String nombreBrigadista
     ) {

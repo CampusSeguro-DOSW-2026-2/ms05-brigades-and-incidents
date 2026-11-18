@@ -1,10 +1,13 @@
 package edu.eci.dosw.brigades_and_incidents.client;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 import java.util.Locale;
@@ -16,12 +19,13 @@ import java.util.stream.Collectors;
  * asignado. MS03 la emite de inmediato y le envía el correo.
  *
  * <ul>
- *   <li>Viaja con la clave de servicio de MS05 y la identidad de quien asignó
- *       ({@code X-User-Id}, {@code X-User-Role}), porque MS03 autoriza según ese usuario.</li>
- *   <li>El coordinador crea una alerta MANUAL de tipo OPERATIVA.</li>
- *   <li>El organizador solo puede crear alertas de simulacro: la alerta va asociada al evento
- *       (SIMULATION) con un {@code purpose} propio de la solicitud y del brigadista, para no chocar
- *       con las demás alertas vivas del evento.</li>
+ *   <li>Viaja con la clave de servicio de MS05 y la identidad completa de quien asignó: el Gateway exige
+ *       {@code X-User-Id}, {@code X-User-Role} y {@code X-User-Permission} juntos, y MS03 autoriza con los
+ *       permisos. Se reenvían los que el Gateway entregó en la petición de asignación.</li>
+ *   <li>Quien tiene {@code ms03:alert:manage} (coordinador) crea una alerta MANUAL de tipo OPERATIVA.</li>
+ *   <li>Quien solo opera simulacros (organizador) crea una alerta asociada al evento (SIMULATION) con un
+ *       {@code purpose} propio de la solicitud y del brigadista, para no chocar con las demás alertas
+ *       vivas del evento.</li>
  * </ul>
  */
 @Component
@@ -31,6 +35,7 @@ public class AlertaClientMs03 implements AlertaClient {
     private static final String RUTA_ALERTAS = "/api/v1/alertas";
     private static final String TITULO = "Solicitud de atención asignada";
     private static final int MAX_PURPOSE = 32;
+    private static final String PERMISO_ALERTAS_REALES = "ms03:alert:manage";
 
     private final RestClient restClient;
 
@@ -46,19 +51,43 @@ public class AlertaClientMs03 implements AlertaClient {
 
     @Override
     public void notificarAsignacion(NotificacionAsignacion notificacion) {
+        String permisos = cabeceraDeLaPeticion("X-User-Permission");
+        if (permisos.isBlank()) {
+            throw new IllegalStateException(
+                    "La petición no trae X-User-Permission: el Gateway rechazaría el aviso");
+        }
+        String roles = cabeceraDeLaPeticion("X-User-Role");
+        String correlacion = cabeceraDeLaPeticion("X-Correlation-ID");
+
         restClient.post()
                 .uri(RUTA_ALERTAS)
-                .header("X-User-Id", notificacion.actorId())
-                .header("X-User-Role", String.join(",", notificacion.actorRoles()))
-                .body(construirAlerta(notificacion))
+                .headers(headers -> {
+                    headers.set("X-User-Id", notificacion.actorId());
+                    headers.set("X-User-Role", roles.isBlank() ? String.join(",", notificacion.actorRoles()) : roles);
+                    headers.set("X-User-Permission", permisos);
+                    if (!correlacion.isBlank()) {
+                        headers.set("X-Correlation-ID", correlacion);
+                    }
+                })
+                .body(construirAlerta(notificacion, permisos))
                 .retrieve()
                 .toBodilessEntity();
     }
 
-    static AlertaRequest construirAlerta(NotificacionAsignacion n) {
-        boolean soloSimulacros = n.actorRoles().stream()
-                .map(rol -> rol.toUpperCase(Locale.ROOT))
-                .noneMatch(rol -> rol.equals("COORDINADOR"));
+    private static String cabeceraDeLaPeticion(String nombre) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos) {
+            HttpServletRequest solicitud = atributos.getRequest();
+            String valor = solicitud.getHeader(nombre);
+            return valor == null ? "" : valor.trim();
+        }
+        return "";
+    }
+
+    static AlertaRequest construirAlerta(NotificacionAsignacion n, String permisos) {
+        // MS03 decide por permisos: sin ms03:alert:manage solo se pueden crear alertas de simulacro
+        boolean soloSimulacros = permisos == null || java.util.Arrays.stream(permisos.split(","))
+                .map(String::trim)
+                .noneMatch(PERMISO_ALERTAS_REALES::equals);
 
         Origen origen = soloSimulacros
                 ? new Origen("SIMULATION", UUID.fromString(n.eventoId()))

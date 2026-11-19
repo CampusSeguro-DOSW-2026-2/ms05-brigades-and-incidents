@@ -32,9 +32,9 @@ public final class Permisos {
     public static final String INCIDENTE_GESTIONAR_PROPIO = "ms05:incident:manage_own";
     public static final String INCIDENTE_ACTUALIZAR = "ms05:incident:update";
     /** Consulta de la auditoría de simulacros (ORGANIZADOR, ADMIN, AUDITOR); el permiso es de MS08. */
-    public static final String AUDITORIA_SIMULACRO_VER = "ms08:audit:drill:read";
+    public static final String AUDITORIA_SIMULACRO_VER = "ms08:audit_drill:read";
     /** Consulta de la auditoría de eventos reales (COORDINADOR, ADMIN, AUDITOR); el permiso es de MS08. */
-    public static final String AUDITORIA_REAL_VER = "ms08:audit:real_event:read";
+    public static final String AUDITORIA_REAL_VER = "ms08:audit_real_event:read";
 
     /**
      * Autoridad de las llamadas de MS06. No llega en X-User-Permission: el filtro la otorga cuando el Gateway
@@ -43,10 +43,11 @@ public final class Permisos {
     public static final String SERVICIO_MS06 = "SERVICE_MS06";
 
     /**
-     * Formato de un permiso (Estándares §4): ms<dos dígitos>:<recurso>:<acción>. La Matriz también tiene permisos de
-     * MS08 con un segmento más (ms08:audit:drill:read), que se aceptan.
+     * Formato de un permiso (Estándares §4): ms<dos dígitos>:<recurso>:<acción>, siempre tres segmentos, igual que
+     * el Gateway (que rechaza el token si trae otro formato). Por eso los de MS08 son ms08:audit_drill:read y no
+     * ms08:audit:drill:read.
      */
-    public static final Pattern FORMATO = Pattern.compile("^ms[0-9]{2}(:[a-z][a-z0-9_]*){2,3}$");
+    public static final Pattern FORMATO = Pattern.compile("^ms[0-9]{2}:[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$");
 
     private Permisos() {
         // Utility class.

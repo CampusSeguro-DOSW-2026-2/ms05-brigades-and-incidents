@@ -89,9 +89,9 @@ class GatewayAuthenticationFilterTest {
     void permisosDeOtrosMicroserviciosTambienSeConservan() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-User-Id", "usuario-123");
-        request.addHeader("X-User-Permission", "ms08:audit:drill:read,ms04:checkin:write");
+        request.addHeader("X-User-Permission", "ms08:audit_drill:read,ms04:checkin:write");
 
-        assertEquals(Set.of("ms08:audit:drill:read", "ms04:checkin:write"), autoridades(ejecutar(request)));
+        assertEquals(Set.of("ms08:audit_drill:read", "ms04:checkin:write"), autoridades(ejecutar(request)));
     }
 
     @Test

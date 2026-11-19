@@ -1,10 +1,16 @@
 package edu.eci.dosw.brigades_and_incidents.client;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 import java.util.Locale;
@@ -17,7 +23,8 @@ import java.util.stream.Collectors;
  *
  * <ul>
  *   <li>Viaja con la clave de servicio de MS05 y la identidad de quien asignó
- *       ({@code X-User-Id}, {@code X-User-Role}), porque MS03 autoriza según ese usuario.</li>
+ *       ({@code X-User-Id}, {@code X-User-Role} y {@code X-User-Permission}), porque MS03 autoriza según los
+ *       permisos de ese usuario y rechaza una identidad parcial.</li>
  *   <li>El coordinador crea una alerta MANUAL de tipo OPERATIVA.</li>
  *   <li>El organizador solo puede crear alertas de simulacro: la alerta va asociada al evento
  *       (SIMULATION) con un {@code purpose} propio de la solicitud y del brigadista, para no chocar
@@ -32,13 +39,18 @@ public class AlertaClientMs03 implements AlertaClient {
     private static final String TITULO = "Solicitud de atención asignada";
     private static final int MAX_PURPOSE = 32;
 
+    /** Identidad del usuario por el que se actúa: el Gateway y MS03 exigen las tres cabeceras juntas. */
+    private static final List<String> CABECERAS_IDENTIDAD =
+            List.of("X-User-Id", "X-User-Role", "X-User-Permission");
+
     private final RestClient restClient;
 
     public AlertaClientMs03(
+            RestClient.Builder builder,
             @Value("${campusseguro.ms03.base-url}") String baseUrl,
             @Value("${campusseguro.ms03.service-key}") String serviceKey
     ) {
-        this.restClient = RestClient.builder()
+        this.restClient = builder
                 .baseUrl(baseUrl)
                 .defaultHeader("X-Service-Key", serviceKey)
                 .build();
@@ -48,11 +60,26 @@ public class AlertaClientMs03 implements AlertaClient {
     public void notificarAsignacion(NotificacionAsignacion notificacion) {
         restClient.post()
                 .uri(RUTA_ALERTAS)
-                .header("X-User-Id", notificacion.actorId())
-                .header("X-User-Role", String.join(",", notificacion.actorRoles()))
+                .headers(AlertaClientMs03::propagarIdentidad)
                 .body(construirAlerta(notificacion))
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    /**
+     * Reenvía la identidad que el Gateway ya validó en la solicitud en curso: las tres cabeceras viajan juntas y
+     * sin cambios, porque una identidad parcial la rechazan tanto el Gateway como MS03.
+     */
+    private static void propagarIdentidad(HttpHeaders headers) {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos) {
+            HttpServletRequest solicitud = atributos.getRequest();
+            for (String nombre : CABECERAS_IDENTIDAD) {
+                String valor = solicitud.getHeader(nombre);
+                if (valor != null && !valor.isBlank()) {
+                    headers.set(nombre, valor);
+                }
+            }
+        }
     }
 
     static AlertaRequest construirAlerta(NotificacionAsignacion n) {

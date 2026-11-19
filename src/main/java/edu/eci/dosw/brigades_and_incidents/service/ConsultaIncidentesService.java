@@ -89,7 +89,7 @@ public class ConsultaIncidentesService {
 
     /** Indica el tipo de los eventos para exigir el permiso de simulacros o el de eventos reales. */
     @Autowired(required = false)
-    public void setTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
+    public void usarTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
         this.tipoEventoResolver = tipoEventoResolver;
     }
 
@@ -485,7 +485,7 @@ public class ConsultaIncidentesService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId);
+        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId).orElse(null);
         if (!Permisos.tieneParaEvento(simulacro,
                 Permisos.ASISTENCIA_ASIGNAR_SIMULACRO, Permisos.ASISTENCIA_ASIGNAR_REAL)) {
             throw new ResponseStatusException(

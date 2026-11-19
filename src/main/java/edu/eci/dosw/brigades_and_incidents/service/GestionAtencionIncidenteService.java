@@ -40,11 +40,8 @@ public class GestionAtencionIncidenteService {
     private final HistorialIncidenteRepository historialRepository;
     private final UsuarioClient usuarioClient;
     private final IncidenteAuditPublisher auditPublisher;
-<<<<<<< HEAD
-    private TipoEventoResolver tipoEventoResolver;
-=======
     private final AlertaClient alertaClient;
->>>>>>> f798cd7d274e5bfcd13015baffed81d1f2aa5f28
+    private TipoEventoResolver tipoEventoResolver;
 
     public GestionAtencionIncidenteService(
             IncidenteRepository incidenteRepository,
@@ -78,11 +75,7 @@ public class GestionAtencionIncidenteService {
             String actorId
     ) {
         validarIdentidad(actorId);
-<<<<<<< HEAD
-        validarCoordinador(actorId, eventoId);
-=======
-        Set<String> rolesActor = validarCoordinador(actorId);
->>>>>>> f798cd7d274e5bfcd13015baffed81d1f2aa5f28
+        Set<String> rolesActor = validarCoordinador(actorId, eventoId);
 
         if (request == null || request.responsableId() == null
                 || request.responsableId().isBlank()) {
@@ -487,28 +480,24 @@ public class GestionAtencionIncidenteService {
         validarBrigadistaAsignado(actorId, incidente);
     }
 
-<<<<<<< HEAD
     /** Indica el tipo de los eventos para exigir el permiso de simulacros o el de eventos reales. */
     @Autowired(required = false)
-    public void setTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
+    public void usarTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
         this.tipoEventoResolver = tipoEventoResolver;
     }
 
     /**
      * Asignar responsable y cerrar exigen ms05:assistance:assign_to_drill en simulacros y
-     * ms05:assistance:assign_to_real en eventos reales (Matriz Rol-Permiso).
+     * ms05:assistance:assign_to_real en eventos reales (Matriz Rol-Permiso). Devuelve los roles del actor solo
+     * para el aviso de asignación a MS03; la autorización sale de los permisos.
      */
-    private void validarCoordinador(String actorId, String eventoId) {
-        consultarUsuarioActivo(actorId);
-=======
-    private Set<String> validarCoordinador(String actorId) {
+    private Set<String> validarCoordinador(String actorId, String eventoId) {
         UsuarioClient.UsuarioExterno usuario =
                 consultarUsuarioActivo(actorId);
 
         Set<String> roles = obtenerRoles(usuario);
->>>>>>> f798cd7d274e5bfcd13015baffed81d1f2aa5f28
 
-        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId);
+        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId).orElse(null);
         if (!Permisos.tieneParaEvento(simulacro,
                 Permisos.ASISTENCIA_ASIGNAR_SIMULACRO, Permisos.ASISTENCIA_ASIGNAR_REAL)) {
             throw new ResponseStatusException(

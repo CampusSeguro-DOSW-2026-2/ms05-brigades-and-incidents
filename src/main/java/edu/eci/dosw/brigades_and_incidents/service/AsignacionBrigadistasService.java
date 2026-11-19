@@ -53,7 +53,7 @@ public class AsignacionBrigadistasService {
 
     /** Indica el tipo de los eventos para exigir el permiso de simulacros o el de eventos reales. */
     @Autowired(required = false)
-    public void setTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
+    public void usarTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
         this.tipoEventoResolver = tipoEventoResolver;
     }
 
@@ -62,7 +62,7 @@ public class AsignacionBrigadistasService {
      * (ms05:brigadier:assign_to_drill). Solo aplica a quien gestiona; la auto asignación del brigadista no pasa por aquí.
      */
     private void validarPermisoDelEvento(String eventoId) {
-        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId);
+        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId).orElse(null);
         if (!Permisos.tieneParaEvento(simulacro,
                 Permisos.BRIGADISTA_ASIGNAR_SIMULACRO, Permisos.BRIGADISTA_ASIGNAR_REAL)) {
             throw new AccessDeniedException(AlcanceGestion.mensajeNoPermitido(Boolean.TRUE.equals(simulacro)));

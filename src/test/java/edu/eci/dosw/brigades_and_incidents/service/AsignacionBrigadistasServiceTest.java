@@ -476,8 +476,8 @@ class AsignacionBrigadistasServiceTest {
     void elCoordinadorNoRetiraAsignacionesDeUnSimulacro() {
         // ms05:brigadier:assign_to_real no alcanza para un simulacro: se exige assign_to_drill
         TipoEventoResolver resolver = mock(TipoEventoResolver.class);
-        when(resolver.esSimulacro("SIM-1")).thenReturn(true);
-        service.setTipoEventoResolver(resolver);
+        when(resolver.esSimulacro("SIM-1")).thenReturn(Optional.of(true));
+        service.usarTipoEventoResolver(resolver);
         AsignacionBrigadista asignacion = new AsignacionBrigadista();
         asignacion.setEventoId("SIM-1");
         UUID id = UUID.randomUUID();
@@ -491,8 +491,8 @@ class AsignacionBrigadistasServiceTest {
     void elOrganizadorRetiraAsignacionesSoloConSuPermisoDeSimulacros() {
         PermisosPrueba.autenticarComo("ORGANIZADOR");
         TipoEventoResolver resolver = mock(TipoEventoResolver.class);
-        when(resolver.esSimulacro("EVT-REAL")).thenReturn(false);
-        service.setTipoEventoResolver(resolver);
+        when(resolver.esSimulacro("EVT-REAL")).thenReturn(Optional.of(false));
+        service.usarTipoEventoResolver(resolver);
         AsignacionBrigadista asignacion = new AsignacionBrigadista();
         asignacion.setEventoId("EVT-REAL");
         UUID id = UUID.randomUUID();

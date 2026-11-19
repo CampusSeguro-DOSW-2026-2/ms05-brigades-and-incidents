@@ -22,7 +22,7 @@ public class BuscarBrigadistaController {
         this.buscarBrigadistaService = buscarBrigadistaService;
     }
 
-    @PreAuthorize("hasAuthority('ms05:brigadier:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @GetMapping("/buscar")
     public BusquedaBrigadistasResponse buscarBrigadistas(
             @RequestHeader("X-User-Id") String usuarioId,
@@ -35,7 +35,7 @@ public class BuscarBrigadistaController {
         );
     }
 
-    @PreAuthorize("hasAuthority('ms05:brigadier:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @PatchMapping("/{brigadistaId}/estado")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cambiarEstado(

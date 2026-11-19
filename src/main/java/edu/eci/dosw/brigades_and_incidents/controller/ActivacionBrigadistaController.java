@@ -27,7 +27,7 @@ public class ActivacionBrigadistaController {
     // Cambiar el estado de un brigadista: coordinadores y organizadores, o el propio brigadista
     // (activarse o quedar no disponible).
     @PreAuthorize(
-            "hasAuthority('ms05:brigadier:assign') "
+            "hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real') "
             + "or (hasAuthority('ms05:panel:read_own') and #brigadistaId == authentication.name)"
     )
     @PutMapping("/{brigadistaId}/estado")

@@ -76,8 +76,9 @@ public class IncidenteController {
         return ResponseEntity.ok(response);
     }
 
-    // Consultar incidentes. Requiere ms05:incident:read.
-    @PreAuthorize("hasAuthority('ms05:incident:read')")
+    // Consultar incidentes. Requiere ms05:incident:read; con soloPropios=true basta ms05:incident:manage_own y
+    // devuelve solo los que reportó el usuario.
+    @PreAuthorize("hasAnyAuthority('ms05:incident:read', 'ms05:incident:manage_own')")
     @GetMapping("/consulta")
     public ResponseEntity<PaginaResponse<IncidenteResumenDTO>> consultarIncidentes(
             @PathVariable String eventoId,
@@ -90,6 +91,7 @@ public class IncidenteController {
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) Integer pagina,
             @RequestParam(required = false) Integer tamanio,
+            @RequestParam(required = false, defaultValue = "false") boolean soloPropios,
             @RequestHeader(value = "X-User-Id", required = false) String usuarioId
     ) {
         // Paginación de los Estándares (§9): page y size; pagina y tamanio se aceptan por compatibilidad.
@@ -110,7 +112,8 @@ public class IncidenteController {
                 consultaIncidentesService.consultarIncidentes(
                         eventoId,
                         filtros,
-                        usuarioId
+                        usuarioId,
+                        soloPropios
                 );
 
         return ResponseEntity.ok(PaginaResponse.de(resultado));
@@ -137,9 +140,9 @@ public class IncidenteController {
 
     /**
      * Elimina logicamente un incidente resuelto.
-     * Requiere ms05:assistance:assign (coordinador).
+     * Requiere ms05:assistance:assign_to_drill o assign_to_real según el evento.
      */
-    @PreAuthorize("hasAuthority('ms05:assistance:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:assistance:assign_to_drill', 'ms05:assistance:assign_to_real')")
     @DeleteMapping("/{incidenteId}")
     public ResponseEntity<Void> eliminarIncidente(
             @PathVariable String eventoId,

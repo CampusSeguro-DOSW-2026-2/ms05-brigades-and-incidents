@@ -10,6 +10,7 @@ import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
 import edu.eci.dosw.brigades_and_incidents.security.Permisos;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class GestionAtencionIncidenteService {
     private final HistorialIncidenteRepository historialRepository;
     private final UsuarioClient usuarioClient;
     private final IncidenteAuditPublisher auditPublisher;
+    private TipoEventoResolver tipoEventoResolver;
 
     public GestionAtencionIncidenteService(
             IncidenteRepository incidenteRepository,
@@ -64,7 +66,7 @@ public class GestionAtencionIncidenteService {
             String actorId
     ) {
         validarIdentidad(actorId);
-        validarCoordinador(actorId);
+        validarCoordinador(actorId, eventoId);
 
         if (request == null || request.responsableId() == null
                 || request.responsableId().isBlank()) {
@@ -274,7 +276,7 @@ public class GestionAtencionIncidenteService {
             String actorId
     ) {
         validarIdentidad(actorId);
-        validarCoordinador(actorId);
+        validarCoordinador(actorId, eventoId);
 
         Incidente incidente = obtenerIncidente(eventoId, incidenteId);
 
@@ -467,13 +469,29 @@ public class GestionAtencionIncidenteService {
         validarBrigadistaAsignado(actorId, incidente);
     }
 
-    private void validarCoordinador(String actorId) {
+    /** Indica el tipo de los eventos para exigir el permiso de simulacros o el de eventos reales. */
+    @Autowired(required = false)
+    public void setTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
+        this.tipoEventoResolver = tipoEventoResolver;
+    }
+
+    /**
+     * Asignar responsable y cerrar exigen ms05:assistance:assign_to_drill en simulacros y
+     * ms05:assistance:assign_to_real en eventos reales (Matriz Rol-Permiso).
+     */
+    private void validarCoordinador(String actorId, String eventoId) {
         consultarUsuarioActivo(actorId);
 
-        if (!Permisos.esGestor()) {
+        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId);
+        if (!Permisos.tieneParaEvento(simulacro,
+                Permisos.ASISTENCIA_ASIGNAR_SIMULACRO, Permisos.ASISTENCIA_ASIGNAR_REAL)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "La operación requiere un permiso de coordinación (ms05:brigadier:assign o ms05:assistance:assign)."
+                    Boolean.TRUE.equals(simulacro)
+                            ? "La operación requiere el permiso ms05:assistance:assign_to_drill."
+                            : Boolean.FALSE.equals(simulacro)
+                            ? "La operación requiere el permiso ms05:assistance:assign_to_real."
+                            : "La operación requiere un permiso de asignación de solicitudes."
             );
         }
     }

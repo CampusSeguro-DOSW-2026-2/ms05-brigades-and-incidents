@@ -29,7 +29,7 @@ public class GestionAtencionIncidenteController {
     }
 
     // Asignar un responsable. Coordinadores u organizadores.
-    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign', 'ms05:assistance:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:assistance:assign_to_drill', 'ms05:assistance:assign_to_real')")
     @PatchMapping("/responsable")
     public ResponseEntity<CambioEstadoIncidenteResponse> asignarResponsable(
             @PathVariable String eventoId,
@@ -86,8 +86,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
-    // Cerrar incidente. Requiere ms05:assistance:assign (coordinador).
-    @PreAuthorize("hasAuthority('ms05:assistance:assign')")
+    // Cerrar incidente. Requiere ms05:assistance:assign_to_drill o assign_to_real según el evento.
+    @PreAuthorize("hasAnyAuthority('ms05:assistance:assign_to_drill', 'ms05:assistance:assign_to_real')")
     @PostMapping("/cerrar")
     public ResponseEntity<CambioEstadoIncidenteResponse> cerrarIncidente(
             @PathVariable String eventoId,

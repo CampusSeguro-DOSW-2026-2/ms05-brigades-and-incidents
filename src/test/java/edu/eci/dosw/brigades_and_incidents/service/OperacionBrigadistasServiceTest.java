@@ -76,8 +76,8 @@ class OperacionBrigadistasServiceTest {
     @InjectMocks
     private OperacionBrigadistasService service;
 
-    private static final AlcanceGestion COORD = AlcanceGestion.desdeRoles("COORDINADOR");
-    private static final AlcanceGestion ORG = AlcanceGestion.desdeRoles("ORGANIZADOR");
+    private static final AlcanceGestion COORD = new AlcanceGestion(true, false);
+    private static final AlcanceGestion ORG = new AlcanceGestion(false, true);
 
     private final EstadoBrigadista activo = new EstadoBrigadista("ACTIVO", "");
     private final EstadoBrigadista inactivo = new EstadoBrigadista("INACTIVO", "");
@@ -327,9 +327,9 @@ class OperacionBrigadistasServiceTest {
         assertEquals(List.of(EVENTO), service.consultarEventosAbiertos(COORD).stream().map(EventoOperacionDTO::eventoId).toList());
         assertEquals(List.of("SIM-1"), service.consultarEventosAbiertos(ORG).stream().map(EventoOperacionDTO::eventoId).toList());
         assertTrue(service.consultarEventosAbiertos(ORG).get(0).permiteReasignar());
-        assertEquals(2, service.consultarEventosAbiertos(AlcanceGestion.desdeRoles("ORGANIZADOR, COORDINADOR")).size());
-        assertTrue(service.consultarEventosAbiertos(AlcanceGestion.desdeRoles(null)).isEmpty());
-        assertTrue(service.consultarEventosAbiertos(AlcanceGestion.desdeRoles("BRIGADISTA")).isEmpty());
+        assertEquals(2, service.consultarEventosAbiertos(new AlcanceGestion(true, true)).size());
+        assertTrue(service.consultarEventosAbiertos(new AlcanceGestion(false, false)).isEmpty());
+        assertTrue(service.consultarEventosAbiertos(new AlcanceGestion(false, false)).isEmpty());
     }
 
     @Test

@@ -48,7 +48,7 @@ class IncidenteConsultaPaginadaTest {
         // Página 1 de tamaño 5, completa, de 12 incidentes en total (3 páginas).
         List<IncidenteResumenDTO> incidentes = List.of(mock(IncidenteResumenDTO.class), mock(IncidenteResumenDTO.class),
                 mock(IncidenteResumenDTO.class), mock(IncidenteResumenDTO.class), mock(IncidenteResumenDTO.class));
-        when(consultaService.consultarIncidentes(eq("EVT-1"), any(ConsultaIncidentesRequest.class), eq("usuario-1")))
+        when(consultaService.consultarIncidentes(eq("EVT-1"), any(ConsultaIncidentesRequest.class), eq("usuario-1"), eq(false)))
                 .thenReturn(new PageImpl<>(incidentes, PageRequest.of(1, 5), 12));
 
         mockMvc.perform(get(URL).param("page", "1").param("size", "5")
@@ -62,14 +62,14 @@ class IncidenteConsultaPaginadaTest {
                 .andExpect(jsonPath("$.content").doesNotExist());
 
         ArgumentCaptor<ConsultaIncidentesRequest> filtros = ArgumentCaptor.forClass(ConsultaIncidentesRequest.class);
-        verify(consultaService).consultarIncidentes(eq("EVT-1"), filtros.capture(), eq("usuario-1"));
+        verify(consultaService).consultarIncidentes(eq("EVT-1"), filtros.capture(), eq("usuario-1"), eq(false));
         assertThat(filtros.getValue().pagina()).isEqualTo(1);
         assertThat(filtros.getValue().tamanio()).isEqualTo(5);
     }
 
     @Test
     void siguenFuncionandoLosParametrosPaginaYTamanio() throws Exception {
-        when(consultaService.consultarIncidentes(eq("EVT-1"), any(ConsultaIncidentesRequest.class), eq("usuario-1")))
+        when(consultaService.consultarIncidentes(eq("EVT-1"), any(ConsultaIncidentesRequest.class), eq("usuario-1"), eq(false)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(2, 3), 0));
 
         mockMvc.perform(get(URL).param("pagina", "2").param("tamanio", "3")
@@ -77,7 +77,7 @@ class IncidenteConsultaPaginadaTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<ConsultaIncidentesRequest> filtros = ArgumentCaptor.forClass(ConsultaIncidentesRequest.class);
-        verify(consultaService).consultarIncidentes(eq("EVT-1"), filtros.capture(), eq("usuario-1"));
+        verify(consultaService).consultarIncidentes(eq("EVT-1"), filtros.capture(), eq("usuario-1"), eq(false));
         assertThat(filtros.getValue().pagina()).isEqualTo(2);
         assertThat(filtros.getValue().tamanio()).isEqualTo(3);
     }

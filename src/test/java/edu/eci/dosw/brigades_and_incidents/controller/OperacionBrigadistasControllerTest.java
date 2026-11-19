@@ -55,7 +55,7 @@ class OperacionBrigadistasControllerTest {
 
     @Test
     void coordinadorConsultaEventosAbiertos() throws Exception {
-        when(service.consultarEventosAbiertos(AlcanceGestion.desdeRoles("COORDINADOR"))).thenReturn(List.of(evento));
+        when(service.consultarEventosAbiertos(new AlcanceGestion(true, false))).thenReturn(List.of(evento));
 
         mockMvc.perform(con(get("/api/v1/brigadistas/eventos"), "C1", "COORDINADOR"))
                 .andExpect(status().isOk())
@@ -65,7 +65,7 @@ class OperacionBrigadistasControllerTest {
 
     @Test
     void coordinadorConsultaPanelDeGestion() throws Exception {
-        when(service.consultarGestion("EVT-1", AlcanceGestion.desdeRoles("COORDINADOR"))).thenReturn(new GestionBrigadistasEventoResponse(evento, List.of(
+        when(service.consultarGestion("EVT-1", new AlcanceGestion(true, false))).thenReturn(new GestionBrigadistasEventoResponse(evento, List.of(
                 new BrigadistaGestionDTO("B1", "Ana", "ACTIVO", "A1", "EDIF-A", "Bloque A", 1, 2)
         )));
 
@@ -77,7 +77,7 @@ class OperacionBrigadistasControllerTest {
 
     @Test
     void panelDeEventoDeOtroTipoResponde403() throws Exception {
-        when(service.consultarGestion("SIM-1", AlcanceGestion.desdeRoles("COORDINADOR")))
+        when(service.consultarGestion("SIM-1", new AlcanceGestion(true, false)))
                 .thenThrow(new org.springframework.security.access.AccessDeniedException("simulacro"));
 
         mockMvc.perform(con(get("/api/v1/brigadistas/eventos/SIM-1/gestion"), "C1", "COORDINADOR"))
@@ -92,7 +92,7 @@ class OperacionBrigadistasControllerTest {
 
     @Test
     void coordinadorCambiaAsignacion() throws Exception {
-        when(service.cambiarAsignacion("EVT-1", "B1", "EDIF-A", "C1", AlcanceGestion.desdeRoles("COORDINADOR"))).thenReturn(
+        when(service.cambiarAsignacion("EVT-1", "B1", "EDIF-A", "C1", new AlcanceGestion(true, false))).thenReturn(
                 new BrigadistaGestionDTO("B1", "B1", "ACTIVO", "A1", "EDIF-A", "Bloque A", 0, 0));
 
         mockMvc.perform(con(put("/api/v1/brigadistas/eventos/EVT-1/brigadistas/B1/asignacion"), "C1", "COORDINADOR")

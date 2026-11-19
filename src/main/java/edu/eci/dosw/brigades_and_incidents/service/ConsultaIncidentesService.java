@@ -52,6 +52,7 @@ public class ConsultaIncidentesService {
     private UbicacionClient ubicacionClient;
     private PrioridadIncidenteRepository prioridadRepository;
     private EstadoIncidenteRepository estadoRepository;
+    private TipoEventoResolver tipoEventoResolver;
 
     public ConsultaIncidentesService(
             IncidenteRepository incidenteRepository,
@@ -86,6 +87,12 @@ public class ConsultaIncidentesService {
         this.prioridadRepository = prioridadRepository;
     }
 
+    /** Indica el tipo de los eventos para exigir el permiso de simulacros o el de eventos reales. */
+    @Autowired(required = false)
+    public void setTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
+        this.tipoEventoResolver = tipoEventoResolver;
+    }
+
     /**
      * Permite validar los valores del catálogo de estados.
      */
@@ -105,6 +112,20 @@ public class ConsultaIncidentesService {
             String eventoId,
             ConsultaIncidentesRequest filtros,
             String usuarioId
+    ) {
+        return consultarIncidentes(eventoId, filtros, usuarioId, false);
+    }
+
+    /**
+     * Igual que la consulta general; con {@code soloPropios} devuelve solo los incidentes que reportó el usuario
+     * ("Mis incidentes"), lo que permite ms05:incident:manage_own o cualquier permiso de consulta.
+     */
+    @Transactional(readOnly = true)
+    public Page<IncidenteResumenDTO> consultarIncidentes(
+            String eventoId,
+            ConsultaIncidentesRequest filtros,
+            String usuarioId,
+            boolean soloPropios
     ) {
         validarIdentidad(usuarioId);
 
@@ -126,7 +147,20 @@ public class ConsultaIncidentesService {
                         IncidenteSpecification.noEliminados()
                 );
 
-        if (Permisos.esGestor()) {
+        if (soloPropios) {
+            if (!Permisos.esGestor() && !Permisos.tieneAlguno(
+                    Permisos.INCIDENTE_GESTIONAR_PROPIO,
+                    Permisos.PANEL_VER_PROPIO,
+                    Permisos.INCIDENTE_VER)) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "El usuario no tiene permisos para consultar incidentes."
+                );
+            }
+            specification = specification.and(
+                    IncidenteSpecification.reportadosPor(usuarioId)
+            );
+        } else if (Permisos.esGestor()) {
             // El coordinador y el organizador pueden consultar todos los
             // incidentes no eliminados del evento.
         } else if (Permisos.tiene(Permisos.PANEL_VER_PROPIO)) {
@@ -450,10 +484,12 @@ public class ConsultaIncidentesService {
 
         validarUsuarioExistenteYActivo(usuario);
 
-        if (!Permisos.tiene(Permisos.ASISTENCIA_ASIGNAR)) {
+        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId);
+        if (!Permisos.tieneParaEvento(simulacro,
+                Permisos.ASISTENCIA_ASIGNAR_SIMULACRO, Permisos.ASISTENCIA_ASIGNAR_REAL)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Solo un coordinador puede eliminar incidentes."
+                    "No tiene permiso para eliminar incidentes de este evento."
             );
         }
 

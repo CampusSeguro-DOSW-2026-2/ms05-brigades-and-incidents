@@ -109,8 +109,15 @@ class PermisosOrganizadorYEvidenciasTest {
     }
 
     @Test
-    void cerrarUnIncidenteSigueSiendoSoloDelCoordinador() throws Exception {
+    void elOrganizadorCierraIncidentesConSuPermisoDeSimulacros() throws Exception {
+        // ms05:assistance:assign_to_drill (Matriz Rol-Permiso); el servicio exige que el evento sea un simulacro
         mockMvc.perform(como(post(BASE_INCIDENTE + "/cerrar"), "ORGANIZADOR"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void elBrigadistaNoCierraIncidentes() throws Exception {
+        mockMvc.perform(como(post(BASE_INCIDENTE + "/cerrar"), "BRIGADISTA"))
                 .andExpect(status().isForbidden());
     }
 

@@ -30,7 +30,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador crea una asignación.
-    @PreAuthorize("hasAuthority('ms05:brigadier:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @PostMapping
     public ResponseEntity<AsignacionResponse> crearAsignacion(
             @Valid @RequestBody CrearAsignacionRequest request,
@@ -64,7 +64,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador modifica una asignación.
-    @PreAuthorize("hasAuthority('ms05:brigadier:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @PutMapping("/{idAsignacion}")
     public ResponseEntity<AsignacionResponse> modificarAsignacion(
             @PathVariable UUID idAsignacion,
@@ -77,7 +77,7 @@ public class AsignacionBrigadistasController {
     }
 
     // El coordinador retira una asignación.
-    @PreAuthorize("hasAuthority('ms05:brigadier:assign')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @PatchMapping("/{idAsignacion}/retiro")
     public ResponseEntity<AsignacionResponse> retirarAsignacion(
             @PathVariable UUID idAsignacion,
@@ -104,7 +104,7 @@ public class AsignacionBrigadistasController {
     }
 
     // Consultar una asignación específica: coordinador o auditor.
-    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign', 'ms05:incident:read')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real', 'ms05:incident:read')")
     @GetMapping("/{idAsignacion}")
     public ResponseEntity<AsignacionResponse> consultarAsignacion(
             @PathVariable UUID idAsignacion) {
@@ -115,7 +115,7 @@ public class AsignacionBrigadistasController {
     }
 
     // Consultar todas las asignaciones de un evento: coordinador o auditor.
-    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign', 'ms05:incident:read')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real', 'ms05:incident:read')")
     @GetMapping("/evento/{eventoId}")
     public ResponseEntity<List<AsignacionResponse>> consultarPorEvento(
             @PathVariable String eventoId) {
@@ -128,7 +128,7 @@ public class AsignacionBrigadistasController {
     // Un brigadista solo puede consultar sus propias asignaciones.
     // Coordinador y auditor pueden consultar las de cualquier brigadista.
     @PreAuthorize(
-            "hasAnyAuthority('ms05:brigadier:assign', 'ms05:incident:read') "
+            "hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real', 'ms05:incident:read') "
             + "or (hasAuthority('ms05:panel:read_own') and #brigadistaId == authentication.name)"
     )
     @GetMapping("/brigadista/{brigadistaId}")

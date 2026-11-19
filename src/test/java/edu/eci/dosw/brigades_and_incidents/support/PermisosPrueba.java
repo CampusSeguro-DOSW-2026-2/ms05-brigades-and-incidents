@@ -19,7 +19,8 @@ import java.util.stream.Collectors;
  */
 public final class PermisosPrueba {
 
-    private static final List<String> USUARIO_GENERAL = List.of(Permisos.INCIDENTE_REPORTAR);
+    private static final List<String> USUARIO_GENERAL = List.of(
+            Permisos.INCIDENTE_REPORTAR, Permisos.INCIDENTE_GESTIONAR_PROPIO);
 
     private static final Map<String, List<String>> POR_ROL = Map.of(
             "ESTUDIANTE", USUARIO_GENERAL,
@@ -29,14 +30,19 @@ public final class PermisosPrueba {
             "BRIGADISTA", List.of(
                     Permisos.PANEL_VER_PROPIO, Permisos.ASISTENCIA_VER, Permisos.ASISTENCIA_REGISTRAR,
                     Permisos.ASISTENCIA_ACTUALIZAR_ESTADO, Permisos.INCIDENTE_REPORTAR,
-                    Permisos.INCIDENTE_VER, Permisos.INCIDENTE_ACTUALIZAR),
+                    Permisos.INCIDENTE_GESTIONAR_PROPIO, Permisos.INCIDENTE_VER, Permisos.INCIDENTE_ACTUALIZAR),
             "COORDINADOR", List.of(
-                    Permisos.BRIGADISTA_ASIGNAR, Permisos.ASISTENCIA_VER, Permisos.ASISTENCIA_REGISTRAR,
-                    Permisos.ASISTENCIA_ASIGNAR, Permisos.ASISTENCIA_ACTUALIZAR_ESTADO,
-                    Permisos.INCIDENTE_REPORTAR, Permisos.INCIDENTE_VER, Permisos.INCIDENTE_ACTUALIZAR),
+                    Permisos.BRIGADISTA_ASIGNAR_REAL, Permisos.ASISTENCIA_VER,
+                    Permisos.ASISTENCIA_ASIGNAR_REAL, Permisos.ASISTENCIA_ACTUALIZAR_ESTADO,
+                    Permisos.INCIDENTE_REPORTAR, Permisos.INCIDENTE_GESTIONAR_PROPIO,
+                    Permisos.INCIDENTE_VER, Permisos.INCIDENTE_ACTUALIZAR, Permisos.AUDITORIA_REAL_VER),
             "ORGANIZADOR", List.of(
-                    Permisos.BRIGADISTA_ASIGNAR, Permisos.INCIDENTE_REPORTAR, Permisos.INCIDENTE_VER),
-            "AUDITOR", List.of(Permisos.INCIDENTE_VER, Permisos.AUDITORIA_VER));
+                    Permisos.BRIGADISTA_ASIGNAR_SIMULACRO, Permisos.ASISTENCIA_VER,
+                    Permisos.ASISTENCIA_ASIGNAR_SIMULACRO, Permisos.ASISTENCIA_ACTUALIZAR_ESTADO,
+                    Permisos.INCIDENTE_REPORTAR, Permisos.INCIDENTE_GESTIONAR_PROPIO, Permisos.INCIDENTE_VER,
+                    Permisos.AUDITORIA_SIMULACRO_VER),
+            "AUDITOR", List.of(Permisos.INCIDENTE_GESTIONAR_PROPIO, Permisos.INCIDENTE_VER,
+                    Permisos.AUDITORIA_SIMULACRO_VER, Permisos.AUDITORIA_REAL_VER));
 
     private PermisosPrueba() {
         // Utility class.

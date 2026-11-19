@@ -63,6 +63,12 @@ public class IncidenteSpecification {
         };
     }
 
+    /** Incidentes que reportó el usuario (los suyos, ms05:incident:manage_own). */
+    public static Specification<Incidente> reportadosPor(String usuarioId) {
+        return (root, query, cb) ->
+                cb.equal(root.get("reportanteId"), usuarioId);
+    }
+
     public static Specification<Incidente> visiblesParaBrigadista(
             String brigadistaId,
             List<String> ubicacionesAsignadas

@@ -26,7 +26,7 @@ public class RegistroAuditoriaController {
      * Consulta los registros de auditoria asociados a un evento.
      * Solo los auditores pueden realizar esta consulta.
      */
-    @PreAuthorize("hasAuthority('ms08:audit:read')")
+    @PreAuthorize("hasAnyAuthority('ms08:audit_drill:read', 'ms08:audit_real_event:read')")
     @GetMapping("/eventos/{eventoId}")
     public List<RegistroAuditoriaResponse> consultarPorEvento(
             @PathVariable String eventoId
@@ -41,7 +41,7 @@ public class RegistroAuditoriaController {
      * Consulta los registros de auditoria asociados a un recurso.
      * Solo los auditores pueden realizar esta consulta.
      */
-    @PreAuthorize("hasAuthority('ms08:audit:read')")
+    @PreAuthorize("hasAnyAuthority('ms08:audit_drill:read', 'ms08:audit_real_event:read')")
     @GetMapping("/recursos/{recursoTipo}/{recursoId}")
     public List<RegistroAuditoriaResponse> consultarPorRecurso(
             @PathVariable String recursoTipo,
@@ -60,7 +60,7 @@ public class RegistroAuditoriaController {
      * Consulta todos los registros de auditoria.
      * Solo los auditores pueden realizar esta consulta.
      */
-    @PreAuthorize("hasAuthority('ms08:audit:read')")
+    @PreAuthorize("hasAnyAuthority('ms08:audit_drill:read', 'ms08:audit_real_event:read')")
     @GetMapping
     public List<RegistroAuditoriaResponse> consultarTodos() {
         return auditoriaService.consultarTodos()

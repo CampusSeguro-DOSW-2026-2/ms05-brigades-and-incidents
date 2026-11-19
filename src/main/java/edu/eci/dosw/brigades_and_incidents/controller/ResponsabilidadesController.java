@@ -35,7 +35,7 @@ public class ResponsabilidadesController {
     }
 
     // Consultar el listado general de responsabilidades.
-    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign', 'ms05:incident:read')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real', 'ms05:incident:read')")
     @GetMapping
     public ResponseEntity<ListadoResponsabilidadesResponse> consultarListadoGeneral(
             @RequestParam(required = false) String eventoId,

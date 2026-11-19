@@ -33,4 +33,10 @@ psql -v ON_ERROR_STOP=1 \
   --dbname "$POSTGRES_DB" \
   --file /migrations/V4__crear_registro_auditoria.sql
 
+echo "6. Aplicando migracion V5..."
+psql -v ON_ERROR_STOP=1 \
+  --username "$POSTGRES_USER" \
+  --dbname "$POSTGRES_DB" \
+  --file /migrations/V5__datos_evento_autoasignacion.sql
+
 echo "Inicializacion de MS05 completada."

@@ -63,14 +63,14 @@ class GatewayAuthenticationFilterTest {
     void debeOtorgarLosPermisosDeLaCabecera() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-User-Id", "usuario-123");
-        request.addHeader("X-User-Permission", "ms05:brigadier:assign, ms05:incident:read,ms05:incident:read");
+        request.addHeader("X-User-Permission", "ms05:brigadier:assign_to_real, ms05:incident:read,ms05:incident:read");
 
         Authentication authentication = ejecutar(request);
 
         assertNotNull(authentication);
         assertTrue(authentication.isAuthenticated());
         assertEquals("usuario-123", authentication.getPrincipal());
-        assertEquals(Set.of("ms05:brigadier:assign", "ms05:incident:read"), autoridades(authentication));
+        assertEquals(Set.of("ms05:brigadier:assign_to_real", "ms05:incident:read"), autoridades(authentication));
     }
 
     @Test
@@ -89,9 +89,9 @@ class GatewayAuthenticationFilterTest {
     void permisosDeOtrosMicroserviciosTambienSeConservan() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-User-Id", "usuario-123");
-        request.addHeader("X-User-Permission", "ms08:audit:read,ms04:checkin:write");
+        request.addHeader("X-User-Permission", "ms08:audit_drill:read,ms04:checkin:write");
 
-        assertEquals(Set.of("ms08:audit:read", "ms04:checkin:write"), autoridades(ejecutar(request)));
+        assertEquals(Set.of("ms08:audit_drill:read", "ms04:checkin:write"), autoridades(ejecutar(request)));
     }
 
     @Test

@@ -56,5 +56,7 @@ class PermisosTest {
         assertTrue(Permisos.FORMATO.matcher("ms01:role:read_own").matches());
         assertFalse(Permisos.FORMATO.matcher("ROLE_ADMIN").matches());
         assertFalse(Permisos.FORMATO.matcher("ms5:incident:read").matches());
+        assertTrue(Permisos.FORMATO.matcher("ms08:audit_drill:read").matches());
+        assertFalse(Permisos.FORMATO.matcher("ms08:audit:drill:read").matches());
     }
 }

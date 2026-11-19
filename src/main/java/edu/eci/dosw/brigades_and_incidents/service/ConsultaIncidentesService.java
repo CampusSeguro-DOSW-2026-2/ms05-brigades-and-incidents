@@ -176,9 +176,9 @@ public class ConsultaIncidentesService {
         } else if (Permisos.tiene(Permisos.INCIDENTE_VER)) {
             // El auditor consulta todos los incidentes, en solo lectura (ms05:incident:read).
         } else {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "El usuario no tiene permisos para consultar incidentes."
+            // Cualquier otro miembro de la comunidad consulta solo las solicitudes que él reportó.
+            specification = specification.and(
+                    IncidenteSpecification.reportadosPor(usuarioId)
             );
         }
 
@@ -425,11 +425,12 @@ public class ConsultaIncidentesService {
                 );
             }
         } else if (Permisos.tiene(Permisos.INCIDENTE_VER)) {
-            // El auditor consulta todos los incidentes, en solo lectura (ms05:incident:read).
-        } else {
+            // The auditor reads every incident, read-only (ms05:incident:read).
+        } else if (!usuarioId.equals(incidente.getReportanteId())) {
+            // Any other user only reads the requests they reported.
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "El usuario no tiene permisos para consultar incidentes."
+                    "No tiene permisos para consultar este incidente."
             );
         }
 

@@ -63,7 +63,10 @@ public class IncidenteSpecification {
         };
     }
 
-    /** Incidentes que reportó el usuario (los suyos, ms05:incident:manage_own). */
+    /**
+     * Solo los incidentes que reportó el usuario: así cualquier miembro de la comunidad ve sus propias
+     * solicitudes de ayuda.
+     */
     public static Specification<Incidente> reportadosPor(String usuarioId) {
         return (root, query, cb) ->
                 cb.equal(root.get("reportanteId"), usuarioId);

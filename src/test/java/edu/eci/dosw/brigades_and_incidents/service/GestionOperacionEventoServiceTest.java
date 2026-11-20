@@ -10,6 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -35,7 +36,25 @@ class GestionOperacionEventoServiceTest {
                 estado,
                 null,
                 null,
+                null,
                 null
+        );
+    }
+
+    private ActualizarEstadoEventoRequest conAlcance(
+            List<ActualizarEstadoEventoRequest.ZonaEventoDTO> zonas,
+            List<String> edificios
+    ) {
+        return new ActualizarEstadoEventoRequest(
+                EVENTO_ID,
+                "Evento",
+                "SISMO",
+                false,
+                "PROGRAMADO",
+                null,
+                null,
+                zonas,
+                edificios
         );
     }
 
@@ -151,6 +170,68 @@ class GestionOperacionEventoServiceTest {
     }
 
     @Test
+    void debeTomarComoZonasLosEdificiosQueEnviaMs06() {
+        when(repository.findById(EVENTO_ID))
+                .thenReturn(Optional.empty());
+
+        service.actualizarOperacion(
+                EVENTO_ID,
+                conAlcance(List.of(), List.of("bloque-a", "bloque-b"))
+        );
+
+        verify(repository).save(argThat(configuracion ->
+                configuracion.getZonas().size() == 2
+                        && configuracion.getZonas().stream()
+                                .allMatch(zona -> "EDIFICIO".equals(zona.getTipoUbicacion()))
+                        && configuracion.getZonas().stream()
+                                .anyMatch(zona -> "bloque-a".equals(zona.getZonaId()))
+                        && configuracion.getZonas().stream()
+                                .anyMatch(zona -> "bloque-b".equals(zona.getZonaId()))
+        ));
+    }
+
+    @Test
+    void debeConservarUnaSolaVezLaZonaQueLlegaEnZonasYEnEdificios() {
+        when(repository.findById(EVENTO_ID))
+                .thenReturn(Optional.empty());
+
+        service.actualizarOperacion(
+                EVENTO_ID,
+                conAlcance(
+                        List.of(new ActualizarEstadoEventoRequest.ZonaEventoDTO(
+                                "bloque-a", "Bloque A", "EDIFICIO")),
+                        List.of("bloque-a", "bloque-b")
+                )
+        );
+
+        verify(repository).save(argThat(configuracion ->
+                configuracion.getZonas().size() == 2
+                        && configuracion.getZonas().stream()
+                                .filter(zona -> "bloque-a".equals(zona.getZonaId()))
+                                .allMatch(zona -> "Bloque A".equals(zona.getNombre()))
+        ));
+    }
+
+    @Test
+    void debeTomarComoZonaSeguraLaZonaQueLlegaSinTipo() {
+        when(repository.findById(EVENTO_ID))
+                .thenReturn(Optional.empty());
+
+        service.actualizarOperacion(
+                EVENTO_ID,
+                conAlcance(
+                        List.of(new ActualizarEstadoEventoRequest.ZonaEventoDTO("zona-1", "Zona abierta")),
+                        List.of()
+                )
+        );
+
+        verify(repository).save(argThat(configuracion ->
+                configuracion.getZonas().size() == 1
+                        && "ZONA_SEGURA".equals(configuracion.getZonas().get(0).getTipoUbicacion())
+        ));
+    }
+
+    @Test
     void debeRechazarSolicitudNula() {
         assertThrows(
                 IllegalArgumentException.class,
@@ -169,6 +250,7 @@ class GestionOperacionEventoServiceTest {
                         "SISMO",
                         false,
                         "PROGRAMADO",
+                        null,
                         null,
                         null,
                         null
@@ -191,6 +273,7 @@ class GestionOperacionEventoServiceTest {
                         "SISMO",
                         false,
                         "PROGRAMADO",
+                        null,
                         null,
                         null,
                         null

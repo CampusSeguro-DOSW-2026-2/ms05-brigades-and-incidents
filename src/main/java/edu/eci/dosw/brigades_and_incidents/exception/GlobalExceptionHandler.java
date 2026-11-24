@@ -6,14 +6,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Locale;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -79,17 +86,75 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarValidaciones(
             MethodArgumentNotValidException ex) {
 
-        String mensaje = ex.getBindingResult()
+        List<ErrorResponse.ErrorCampo> errores = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
-                .map(error ->
-                        error.getField() + ": " + error.getDefaultMessage()
-                )
-                .collect(Collectors.joining("; "));
+                .map(error -> new ErrorResponse.ErrorCampo(
+                        error.getField(), error.getDefaultMessage()))
+                .toList();
 
         return construirRespuesta(
                 HttpStatus.BAD_REQUEST,
-                mensaje
+                "Los datos enviados no son válidos.",
+                errores
+        );
+    }
+
+    // Identidad del Gateway ausente: 401 (Estándares §4); cualquier otra cabecera obligatoria: 400.
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> manejarCabeceraFaltante(
+            MissingRequestHeaderException ex) {
+
+        if (ex.getHeaderName().toLowerCase(Locale.ROOT).startsWith("x-user-")) {
+            return construirRespuesta(HttpStatus.UNAUTHORIZED, "Se requiere autenticación.");
+        }
+        return construirRespuesta(
+                HttpStatus.BAD_REQUEST,
+                "Falta la cabecera " + ex.getHeaderName() + "."
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> manejarAccesoDenegado(
+            AccessDeniedException ex) {
+
+        return construirRespuesta(
+                HttpStatus.FORBIDDEN,
+                "No tiene permisos para realizar esta operación."
+        );
+    }
+
+    @ExceptionHandler({
+            MethodArgumentTypeMismatchException.class,
+            HttpMessageNotReadableException.class,
+            MissingServletRequestParameterException.class
+    })
+    public ResponseEntity<ErrorResponse> manejarSolicitudMalFormada(
+            Exception ex) {
+
+        return construirRespuesta(
+                HttpStatus.BAD_REQUEST,
+                "La solicitud tiene un formato inválido."
+        );
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> manejarMetodoNoPermitido(
+            HttpRequestMethodNotSupportedException ex) {
+
+        return construirRespuesta(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "El método no está permitido en esta ruta."
+        );
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> manejarTipoNoSoportado(
+            HttpMediaTypeNotSupportedException ex) {
+
+        return construirRespuesta(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "El tipo de contenido no está soportado."
         );
     }
 
@@ -148,15 +213,16 @@ public class GlobalExceptionHandler {
             HttpStatus status,
             String mensaje) {
 
-        ErrorResponse respuesta = new ErrorResponse(
-                LocalDateTime.now(),
-                status.value(),
-                status.getReasonPhrase(),
-                mensaje
-        );
+        return construirRespuesta(status, mensaje, List.of());
+    }
+
+    private ResponseEntity<ErrorResponse> construirRespuesta(
+            HttpStatus status,
+            String mensaje,
+            List<ErrorResponse.ErrorCampo> errores) {
 
         return ResponseEntity
                 .status(status)
-                .body(respuesta);
+                .body(ErrorResponse.de(status, mensaje, errores));
     }
 }

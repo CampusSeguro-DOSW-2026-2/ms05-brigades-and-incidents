@@ -1,56 +1,66 @@
-name: ms05
+# Stack de MS05 en la nube: uno por entorno en la misma VM (ms05-prod y ms05-test), cada uno con su BD y sus
+# evidencias. No publica puertos: solo el Caddy de borde de la VM (red campus-edge) llega a MS05, con el alias
+# ms05-<entorno>, y la BD solo es visible dentro del stack. Lo usa infra/deploy.sh con el .env que escribe en
+# DEPLOY_DIR/<entorno>; no se ejecuta a mano.
+name: ms05-${ENTORNO:?ENTORNO es obligatoria (test o prod)}
 
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17.6-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:?Falta DB_NAME}
-      POSTGRES_USER: ${DB_USER:?Falta DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD}
+      POSTGRES_DB: brigades_incidents_db
+      POSTGRES_USER: ms05_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatoria}
     volumes:
-      - ms05_prod_pgdata:/var/lib/postgresql/data
+      - datos:/var/lib/postgresql/data
+      # Esquema inicial: initdb.d ejecuta 01-initialize-ms05.sh, que aplica database/init y database/migrations.
+      # Postgres solo lo hace la primera vez, con el volumen vacío.
       - ./db:/docker-entrypoint-initdb.d:ro
-      - ../database/init:/database-init:ro
-      - ../database/migrations:/migrations:ro
+      - ./database/init:/database-init:ro
+      - ./database/migrations:/migrations:ro
     healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ms05_user -d brigades_incidents_db"]
+      interval: 5s
       timeout: 5s
-      retries: 8
+      retries: 12
     networks:
-      - ms05_internal
+      - interna
 
-  backend:
-    image: ghcr.io/campusseguro-dosw-2026-2/ms05-brigades-and-incidents-api:restclient-fix
+  ms05:
+    image: ${IMAGE:?IMAGE es obligatoria}:${TAG:?TAG es obligatoria (sha-xxxxxxx)}
     restart: unless-stopped
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-      SPRING_JPA_SHOW_SQL: "false"
-      MS05_GATEWAY_URL: ${GATEWAY_URL}
-      GW_SERVICE_KEY_MS05: ${GATEWAY_SERVICE_KEY}
-      GATEWAY_SYSTEM_USER_: ${GATEWAY_SYSTEM_USER_}
-      EVIDENCIAS_DIRECTORIO: /app/uploads/evidencias
-      SERVER_PORT: 8085
-    ports:
-      - "8085:8085"
-    volumes:
-      - ms05_evidencias:/app/uploads/evidencias
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/brigades_incidents_db
+      SPRING_DATASOURCE_USERNAME: ms05_user
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatoria}
+      SPRING_JPA_SHOW_SQL: "false"
+      SERVER_PORT: "8085"
+      # Llamadas a MS01 y MS02 a través del Gateway, con la clave de MS05 (Estándares §5)
+      MS05_GATEWAY_URL: ${GATEWAY_URL:?GATEWAY_URL es obligatoria (https://<dominio del GW> o :8443)}
+      GW_SERVICE_KEY_MS05: ${GATEWAY_SERVICE_KEY:?GATEWAY_SERVICE_KEY es obligatoria}
+      EVIDENCIAS_DIRECTORIO: /app/uploads/evidencias
+    # Variables opcionales del entorno, si las hay.
+    env_file:
+      - path: extra.env
+        required: false
+    volumes:
+      - evidencias:/app/uploads/evidencias
     networks:
-      - ms05_internal
+      interna:
+      edge:
+        aliases:
+          - ms05-${ENTORNO}
 
 volumes:
-  ms05_prod_pgdata:
-  ms05_evidencias:
+  datos:
+  evidencias:
 
 networks:
-  ms05_internal:
-    driver: bridge
+  interna:
+  edge:
+    name: campus-edge
+    external: true

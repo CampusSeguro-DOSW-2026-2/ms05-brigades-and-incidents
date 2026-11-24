@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/eventos/{eventoId}/incidentes/{incidenteId}")
+@RequestMapping("/api/v1/incidentes/eventos/{eventoId}/{incidenteId}")
 public class GestionAtencionIncidenteController {
 
     private final GestionAtencionIncidenteService gestionService;
@@ -28,8 +28,8 @@ public class GestionAtencionIncidenteController {
         this.gestionService = gestionService;
     }
 
-    // Asignar un responsable. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    // Asignar un responsable. Coordinadores u organizadores.
+    @PreAuthorize("hasAnyAuthority('ms05:assistance:assign_to_drill', 'ms05:assistance:assign_to_real')")
     @PatchMapping("/responsable")
     public ResponseEntity<CambioEstadoIncidenteResponse> asignarResponsable(
             @PathVariable String eventoId,
@@ -48,8 +48,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
-    // Iniciar atención. Solo brigadistas.
-    @PreAuthorize("hasRole('BRIGADISTA')")
+    // Iniciar atención. Requiere ms05:assistance:update_status; el servicio exige ser el responsable.
+    @PreAuthorize("hasAuthority('ms05:assistance:update_status')")
     @PostMapping("/iniciar-atencion")
     public ResponseEntity<CambioEstadoIncidenteResponse> iniciarAtencion(
             @PathVariable String eventoId,
@@ -66,8 +66,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
-    // Resolver incidente. Solo brigadistas.
-    @PreAuthorize("hasRole('BRIGADISTA')")
+    // Resolver incidente. Requiere ms05:assistance:update_status; el servicio exige ser el responsable.
+    @PreAuthorize("hasAuthority('ms05:assistance:update_status')")
     @PostMapping("/resolver")
     public ResponseEntity<CambioEstadoIncidenteResponse> resolverIncidente(
             @PathVariable String eventoId,
@@ -86,8 +86,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
-    // Cerrar incidente. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    // Cerrar incidente. Requiere ms05:assistance:assign_to_drill o assign_to_real según el evento.
+    @PreAuthorize("hasAnyAuthority('ms05:assistance:assign_to_drill', 'ms05:assistance:assign_to_real')")
     @PostMapping("/cerrar")
     public ResponseEntity<CambioEstadoIncidenteResponse> cerrarIncidente(
             @PathVariable String eventoId,
@@ -104,8 +104,8 @@ public class GestionAtencionIncidenteController {
         );
     }
 
-    // Consultar historial. Coordinadores, brigadistas y auditores.
-    @PreAuthorize("hasAnyRole('COORDINATOR', 'BRIGADISTA', 'AUDITOR')")
+    // Consultar historial. Requiere ms05:incident:read.
+    @PreAuthorize("hasAuthority('ms05:incident:read')")
     @GetMapping("/historial")
     public ResponseEntity<List<HistorialIncidenteResponse>> consultarHistorial(
             @PathVariable String eventoId,

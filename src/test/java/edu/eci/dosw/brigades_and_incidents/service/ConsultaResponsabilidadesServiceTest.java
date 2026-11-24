@@ -487,7 +487,7 @@ class ConsultaResponsabilidadesServiceTest {
         BuscarBrigadistaResponse otroRol = new BuscarBrigadistaResponse(
                 "USER-003",
                 "Ana Pérez",
-                "COORDINATOR",
+                "COORDINADOR",
                 "ACTIVO",
                 List.of()
         );

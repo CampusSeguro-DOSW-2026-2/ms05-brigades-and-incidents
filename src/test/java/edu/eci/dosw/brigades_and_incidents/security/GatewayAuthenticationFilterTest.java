@@ -1,17 +1,16 @@
-
 package edu.eci.dosw.brigades_and_incidents.security;
-
-import jakarta.servlet.FilterChain;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.mock.web.MockFilterChain;
-
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,93 +24,88 @@ class GatewayAuthenticationFilterTest {
         SecurityContextHolder.clearContext();
     }
 
-    @Test
-    void noDebeAutenticarCuandoFaltanLosEncabezados() throws Exception {
+    private Authentication ejecutar(MockHttpServletRequest request) throws Exception {
+        SecurityContextHolder.clearContext();
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        return SecurityContextHolder.getContext().getAuthentication();
+    }
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = new MockFilterChain();
-
-        filter.doFilter(request, response, chain);
-
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        assertNull(authentication);
+    private Set<String> autoridades(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .collect(Collectors.toSet());
     }
 
     @Test
-    void noDebeAutenticarCuandoElRolEsInvalido() throws Exception {
-
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-User-Id", "usuario-123");
-        request.addHeader("X-User-Role", "ADMIN");
-
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = new MockFilterChain();
-
-        filter.doFilter(request, response, chain);
-
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        assertNull(authentication);
+    void noDebeAutenticarCuandoFaltanLasCabeceras() throws Exception {
+        assertNull(ejecutar(new MockHttpServletRequest()));
     }
 
     @Test
-    void debeAutenticarConRolValido() throws Exception {
-
+    void noDebeAutenticarSinPermisosValidos() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-User-Id", "usuario-123");
-        request.addHeader("X-User-Role", "COORDINATOR");
+        request.addHeader("X-User-Permission", "SUPERUSUARIO,ms5:mal:formato");
 
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = new MockFilterChain();
+        assertNull(ejecutar(request));
+    }
 
-        filter.doFilter(request, response, chain);
+    @Test
+    void losRolesNoAutorizan() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-User-Id", "usuario-123");
+        request.addHeader("X-User-Role", "COORDINADOR");
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
+        assertNull(ejecutar(request));
+    }
+
+    @Test
+    void debeOtorgarLosPermisosDeLaCabecera() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-User-Id", "usuario-123");
+        request.addHeader("X-User-Permission", "ms05:brigadier:assign_to_real, ms05:incident:read,ms05:incident:read");
+
+        Authentication authentication = ejecutar(request);
 
         assertNotNull(authentication);
         assertTrue(authentication.isAuthenticated());
         assertEquals("usuario-123", authentication.getPrincipal());
-        assertTrue(authentication.getAuthorities().stream()
-                .anyMatch(authority ->
-                        authority.getAuthority().equals("ROLE_COORDINATOR")));
+        assertEquals(Set.of("ms05:brigadier:assign_to_real", "ms05:incident:read"), autoridades(authentication));
     }
 
     @Test
-    void debeReconocerTodosLosRolesPermitidos() throws Exception {
+    void debeIgnorarLosPermisosConFormatoInvalido() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-User-Id", "usuario-123");
+        request.addHeader("X-User-Permission", "ms05:incident:read,ROLE_ADMIN,MS05:incident:read");
 
-        String[] roles = {
-                Roles.COORDINATOR,
-                Roles.BRIGADISTA,
-                Roles.AUDITOR,
-                Roles.SERVICE_MS06
-        };
+        Authentication authentication = ejecutar(request);
 
-        for (String role : roles) {
+        assertNotNull(authentication);
+        assertEquals(Set.of("ms05:incident:read"), autoridades(authentication));
+    }
 
-            SecurityContextHolder.clearContext();
+    @Test
+    void permisosDeOtrosMicroserviciosTambienSeConservan() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-User-Id", "usuario-123");
+        request.addHeader("X-User-Permission", "ms08:audit_drill:read,ms04:checkin:write");
 
-            MockHttpServletRequest request = new MockHttpServletRequest();
-            request.addHeader("X-User-Id", "usuario-123");
-            request.addHeader("X-User-Role", role);
+        assertEquals(Set.of("ms08:audit_drill:read", "ms04:checkin:write"), autoridades(ejecutar(request)));
+    }
 
-            MockHttpServletResponse response = new MockHttpServletResponse();
-            FilterChain chain = new MockFilterChain();
+    @Test
+    void ms06SeIdentificaPorXServiceNameYNoPorLosPermisos() throws Exception {
+        MockHttpServletRequest porPermiso = new MockHttpServletRequest();
+        porPermiso.addHeader("X-User-Id", "usuario-123");
+        porPermiso.addHeader("X-User-Permission", Permisos.SERVICIO_MS06);
+        assertNull(ejecutar(porPermiso));
 
-            filter.doFilter(request, response, chain);
+        MockHttpServletRequest porServicio = new MockHttpServletRequest();
+        porServicio.addHeader("X-Service-Name", "ms06");
+        Authentication authentication = ejecutar(porServicio);
 
-            Authentication authentication =
-                    SecurityContextHolder.getContext().getAuthentication();
-
-            assertNotNull(authentication, "No se autenticó el rol: " + role);
-
-            assertTrue(authentication.getAuthorities().stream()
-                    .anyMatch(authority ->
-                            authority.getAuthority().equals("ROLE_" + role)));
-        }
+        assertNotNull(authentication);
+        assertEquals(Set.of(Permisos.SERVICIO_MS06), autoridades(authentication));
     }
 }

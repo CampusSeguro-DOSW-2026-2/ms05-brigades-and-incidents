@@ -1,9 +1,7 @@
-
 package edu.eci.dosw.brigades_and_incidents.controller;
 
 import edu.eci.dosw.brigades_and_incidents.dto.BusquedaBrigadistasResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.CambiarEstadoBrigadistaRequest;
-import edu.eci.dosw.brigades_and_incidents.security.Roles;
 import edu.eci.dosw.brigades_and_incidents.service.BuscarBrigadistaService;
 
 import org.springframework.http.HttpStatus;
@@ -23,30 +21,29 @@ public class BuscarBrigadistaController {
         this.buscarBrigadistaService = buscarBrigadistaService;
     }
 
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @GetMapping("/buscar")
     public BusquedaBrigadistasResponse buscarBrigadistas(
             @RequestHeader("X-User-Id") String usuarioId,
-            @RequestHeader("X-User-Role") String rolUsuario,
-            @RequestParam String nombreBrigadista
+            // Sin nombre (o vacío) devuelve todos los brigadistas, activos o no
+            @RequestParam(required = false) String nombreBrigadista
     ) {
-        validarCoordinador(usuarioId, rolUsuario);
+        validarIdentidad(usuarioId);
 
         return buscarBrigadistaService.buscarBrigadistas(
                 nombreBrigadista
         );
     }
 
-    @PreAuthorize("hasRole('COORDINATOR')")
+    @PreAuthorize("hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real')")
     @PatchMapping("/{brigadistaId}/estado")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void cambiarEstado(
             @PathVariable String brigadistaId,
             @RequestHeader("X-User-Id") String usuarioId,
-            @RequestHeader("X-User-Role") String rolUsuario,
             @RequestBody CambiarEstadoBrigadistaRequest request
     ) {
-        validarCoordinador(usuarioId, rolUsuario);
+        validarIdentidad(usuarioId);
 
         buscarBrigadistaService.cambiarEstado(
                 brigadistaId,
@@ -54,22 +51,11 @@ public class BuscarBrigadistaController {
         );
     }
 
-    private void validarCoordinador(
-            String usuarioId,
-            String rolUsuario
-    ) {
-        if (usuarioId == null || usuarioId.isBlank()
-                || rolUsuario == null || rolUsuario.isBlank()) {
+    private void validarIdentidad(String usuarioId) {
+        if (usuarioId == null || usuarioId.isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "El usuario no está autenticado"
-            );
-        }
-
-        if (!Roles.COORDINATOR.equalsIgnoreCase(rolUsuario.trim())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "No tiene permisos para realizar esta operación"
             );
         }
     }

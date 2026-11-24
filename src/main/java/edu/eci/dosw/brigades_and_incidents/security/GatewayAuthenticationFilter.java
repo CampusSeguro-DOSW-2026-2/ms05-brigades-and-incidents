@@ -1,4 +1,3 @@
-
 package edu.eci.dosw.brigades_and_incidents.security;
 
 import jakarta.servlet.FilterChain;
@@ -7,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,13 +14,27 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Autentica con las cabeceras que inyecta el Gateway (Estándares §4 y §5):
+ * <ul>
+ *   <li>X-User-Id y X-User-Permission: el usuario y sus permisos efectivos (la unión de los de sus roles),
+ *       separados por coma. Solo cuentan los de formato válido; el resto se ignora. MS05 autoriza únicamente con
+ *       permisos, nunca con X-User-Role: el tipo de evento que gestiona cada usuario también sale de sus permisos
+ *       (assign_to_real para eventos reales y assign_to_drill para simulacros; ver AlcanceGestion).</li>
+ *   <li>X-Service-Name: el servicio que llama con su clave (ms01 … ms08). El Gateway la deriva de la clave,
+ *       nadie más puede fijarla; ms06 recibe la autoridad {@link Permisos#SERVICIO_MS06}.</li>
+ * </ul>
+ */
 public class GatewayAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String USER_ID_HEADER = "X-User-Id";
-    private static final String USER_ROLE_HEADER = "X-User-Role";
+    static final String USER_ID_HEADER = "X-User-Id";
+    static final String USER_PERMISSION_HEADER = "X-User-Permission";
+    static final String SERVICE_NAME_HEADER = "X-Service-Name";
 
     @Override
     protected void doFilterInternal(
@@ -30,45 +44,34 @@ public class GatewayAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String userId = request.getHeader(USER_ID_HEADER);
-        String userRole = request.getHeader(USER_ROLE_HEADER);
+        String userPermissions = request.getHeader(USER_PERMISSION_HEADER);
+        String servicio = request.getHeader(SERVICE_NAME_HEADER);
 
-        if (userId != null && !userId.isBlank()
-                && userRole != null && !userRole.isBlank()) {
+        List<GrantedAuthority> autoridades = new ArrayList<>();
+        boolean usuario = userId != null && !userId.isBlank() && userPermissions != null && !userPermissions.isBlank();
+        if (usuario) {
+            Arrays.stream(userPermissions.split(","))
+                    .map(String::trim)
+                    .filter(permiso -> Permisos.FORMATO.matcher(permiso).matches())
+                    .distinct()
+                    .forEach(permiso -> autoridades.add(new SimpleGrantedAuthority(permiso)));
+        }
+        boolean llamadaMs06 = servicio != null && "ms06".equalsIgnoreCase(servicio.trim());
+        if (llamadaMs06) {
+            autoridades.add(new SimpleGrantedAuthority(Permisos.SERVICIO_MS06));
+        }
 
-            String role = userRole.trim().toUpperCase(Locale.ROOT);
+        if (!autoridades.isEmpty()) {
+            String principal = usuario ? userId.trim() : "servicio:" + servicio.trim().toLowerCase(Locale.ROOT);
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(principal, null, autoridades);
+            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-            if (isValidRole(role)) {
-
-                SimpleGrantedAuthority authority =
-                        new SimpleGrantedAuthority("ROLE_" + role);
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userId.trim(),
-                                null,
-                                List.of(authority)
-                        );
-
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource()
-                                .buildDetails(request)
-                );
-
-                SecurityContext context =
-                        SecurityContextHolder.createEmptyContext();
-
-                context.setAuthentication(authentication);
-                SecurityContextHolder.setContext(context);
-            }
+            SecurityContext context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(authentication);
+            SecurityContextHolder.setContext(context);
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private boolean isValidRole(String role) {
-        return role.equals("COORDINATOR")
-                || role.equals("BRIGADISTA")
-                || role.equals("AUDITOR")
-                || role.equals("SERVICE_MS06");
     }
 }

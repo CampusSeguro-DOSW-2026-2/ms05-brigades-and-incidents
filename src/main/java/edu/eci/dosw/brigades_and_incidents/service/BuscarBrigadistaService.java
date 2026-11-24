@@ -55,8 +55,6 @@ public class BuscarBrigadistaService {
     public BusquedaBrigadistasResponse buscarBrigadistas(
             String nombreBrigadista
     ) {
-        validarBusqueda(nombreBrigadista);
-
         List<BrigadistaExterno> brigadistasExternos;
 
         try {
@@ -78,7 +76,8 @@ public class BuscarBrigadistaService {
 
         sincronizarBrigadistas(brigadistasExternos);
 
-        String textoBusqueda = normalizar(nombreBrigadista);
+        // Sin texto se listan todos los brigadistas (la pantalla de gestión los filtra)
+        String textoBusqueda = nombreBrigadista == null ? "" : normalizar(nombreBrigadista);
 
         List<BrigadistaExterno> encontrados =
                 brigadistasExternos.stream()
@@ -225,15 +224,6 @@ public class BuscarBrigadistaService {
                 && brigadista.rol().equalsIgnoreCase(ROL_BRIGADISTA)
                 && brigadista.nombre() != null
                 && !brigadista.nombre().isBlank();
-    }
-
-    private void validarBusqueda(String nombreBrigadista) {
-        if (nombreBrigadista == null || nombreBrigadista.isBlank()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Debe ingresar un nombre o apellido para buscar"
-            );
-        }
     }
 
     private String normalizar(String texto) {

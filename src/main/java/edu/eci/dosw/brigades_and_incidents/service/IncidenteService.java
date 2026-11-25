@@ -221,9 +221,11 @@ public class IncidenteService {
     }
 
     /**
-     * Edita la descripción de un incidente existente.
+     * Edita la descripción y la prioridad de un incidente existente.
      * El propietario puede editar su incidente y un brigadista activo
-     * puede editar incidentes reportados por otros usuarios.
+     * puede editar incidentes reportados por otros usuarios. La prioridad
+     * permite completar la solicitud de asistencia que MS04 crea desde el
+     * check-in con la prioridad por defecto.
      */
     @Transactional
     public IncidenteResponse editarIncidente(
@@ -290,6 +292,17 @@ public class IncidenteService {
             incidente.setDescripcion(request.descripcion().trim());
         }
 
+        if (request != null && request.prioridadId() != null) {
+            PrioridadIncidente prioridad = prioridadRepository
+                    .findById(request.prioridadId())
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "La prioridad seleccionada no existe."
+                            )
+                    );
+            incidente.setPrioridad(prioridad);
+        }
+
         Incidente actualizado = incidenteRepository.save(incidente);
 
         auditPublisher.publicar(
@@ -299,7 +312,9 @@ public class IncidenteService {
                 eventoId,
                 usuarioId,
                 "EXITOSO",
-                "Se actualizó la descripción del incidente."
+                request != null && request.prioridadId() != null
+                        ? "Se actualizó la descripción o la prioridad del incidente."
+                        : "Se actualizó la descripción del incidente."
         );
 
         return incidenteMapper.toResponse(actualizado);

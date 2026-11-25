@@ -55,7 +55,7 @@ public class IncidenteController {
         return ResponseEntity.ok(response);
     }
 
-    // Modificar un incidente (descripción). El servicio exige ser el dueño o un brigadista activo.
+    // Modificar un incidente (descripción o prioridad). El servicio exige ser el dueño o un brigadista activo.
     @PreAuthorize("hasAnyAuthority('ms05:incident:update', 'ms05:incident:report')")
     @PutMapping("/{incidenteId}")
     public ResponseEntity<IncidenteResponse> editarIncidente(

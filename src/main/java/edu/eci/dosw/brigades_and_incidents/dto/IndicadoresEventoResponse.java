@@ -11,8 +11,19 @@ public record IndicadoresEventoResponse(
         long totalCasosAtendidos,
         long totalCasosResueltos,
         List<BrigadistaIndicadorDTO> porBrigadista,
-        List<IncidenteResumenDTO> incidentes
+        List<IncidenteResumenDTO> incidentes,
+        /** Promedio, en segundos, entre el reporte y la primera atención; null si ningún caso se ha atendido. */
+        Long tiempoPromedioAtencionSegundos
 ) {
+
+    /** Indicadores sin tiempo promedio (ningún caso atendido). */
+    public IndicadoresEventoResponse(String eventoId, OffsetDateTime actualizadoEn, long totalIncidentes,
+            long totalCasosAtendidos, long totalCasosResueltos, List<BrigadistaIndicadorDTO> porBrigadista,
+            List<IncidenteResumenDTO> incidentes) {
+        this(eventoId, actualizadoEn, totalIncidentes, totalCasosAtendidos, totalCasosResueltos, porBrigadista,
+                incidentes, null);
+    }
+
     public IndicadoresEventoResponse {
         porBrigadista = porBrigadista == null
                 ? List.of()

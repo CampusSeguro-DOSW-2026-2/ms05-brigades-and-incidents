@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
+import edu.eci.dosw.brigades_and_incidents.dto.EditarIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.IncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
@@ -519,5 +520,62 @@ class IncidenteServiceFlujoTest {
         verify(incidenteRepository).save(captor.capture());
 
         return captor.getValue();
+    }
+
+    /** Incidente abierto del evento, reportado por el usuario general (la solicitud que MS04 crea desde el check-in). */
+    private Incidente incidenteAbiertoPropio(UUID id) {
+        Incidente incidente = new Incidente();
+        incidente.setId(id);
+        incidente.setEventoId(EVENTO_ID);
+        incidente.setReportanteId(USUARIO_ID);
+        incidente.setEstado(estadoReportado);
+        incidente.setPrioridad(prioridad);
+        when(estadoReportado.getNombre()).thenReturn("REPORTADO");
+        when(incidenteRepository.findById(id)).thenReturn(Optional.of(incidente));
+        when(usuarioClient.consultarUsuario(USUARIO_ID)).thenReturn(new UsuarioClient.UsuarioExterno(
+                USUARIO_ID, "Daniel García", List.of("ESTUDIANTE"), "ACTIVO"));
+        return incidente;
+    }
+
+    @Test
+    void elPropietarioCompletaLaSolicitudConPrioridadYDescripcion() {
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
+        UUID id = UUID.randomUUID();
+        Incidente incidente = incidenteAbiertoPropio(id);
+        PrioridadIncidente baja = mock(PrioridadIncidente.class);
+        when(prioridadRepository.findById(3L)).thenReturn(Optional.of(baja));
+
+        incidenteService.editarIncidente(EVENTO_ID, id,
+                new EditarIncidenteRequest("Estoy en el piso 3, junto a la escalera.", 3L), USUARIO_ID);
+
+        assertSame(baja, incidente.getPrioridad());
+        assertEquals("Estoy en el piso 3, junto a la escalera.", incidente.getDescripcion());
+        verify(incidenteRepository).save(incidente);
+    }
+
+    @Test
+    void sinPrioridadConservaLaQueTeniaElIncidente() {
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
+        UUID id = UUID.randomUUID();
+        Incidente incidente = incidenteAbiertoPropio(id);
+
+        incidenteService.editarIncidente(EVENTO_ID, id, new EditarIncidenteRequest("Solo cambia el texto.", null), USUARIO_ID);
+
+        assertSame(prioridad, incidente.getPrioridad());
+        verify(prioridadRepository, never()).findById(3L);
+    }
+
+    @Test
+    void noPermiteEditarConPrioridadInexistente() {
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
+        UUID id = UUID.randomUUID();
+        incidenteAbiertoPropio(id);
+        when(prioridadRepository.findById(99L)).thenReturn(Optional.empty());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () ->
+                incidenteService.editarIncidente(EVENTO_ID, id, new EditarIncidenteRequest(null, 99L), USUARIO_ID));
+
+        assertEquals("La prioridad seleccionada no existe.", error.getMessage());
+        verify(incidenteRepository, never()).save(any(Incidente.class));
     }
 }

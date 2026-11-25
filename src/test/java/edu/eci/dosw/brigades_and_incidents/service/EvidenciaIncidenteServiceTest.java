@@ -1,8 +1,8 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
-import edu.eci.dosw.brigades_and_incidents.entity.Brigadista;
 import edu.eci.dosw.brigades_and_incidents.entity.EstadoIncidente;
 import edu.eci.dosw.brigades_and_incidents.entity.EvidenciaIncidente;
 import edu.eci.dosw.brigades_and_incidents.entity.Incidente;
@@ -11,6 +11,7 @@ import edu.eci.dosw.brigades_and_incidents.exception.EvidenciaIncidenteException
 import edu.eci.dosw.brigades_and_incidents.repository.BrigadistaRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.EvidenciaIncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,11 @@ class EvidenciaIncidenteServiceTest {
 
     private Incidente incidente;
 
+    @AfterEach
+    void limpiarSeguridad() {
+        PermisosPrueba.limpiar();
+    }
+
     @BeforeEach
     void configurar() {
 
@@ -62,6 +68,8 @@ class EvidenciaIncidenteServiceTest {
                 auditPublisher,
                 usuarioClient
         );
+
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
 
         incidente = new Incidente();
         incidente.setId(INCIDENTE_ID);

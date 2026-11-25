@@ -1,5 +1,6 @@
 package edu.eci.dosw.brigades_and_incidents.controller;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.dto.AsignacionResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearAsignacionRequest;
 import edu.eci.dosw.brigades_and_incidents.dto.ModificarAsignacionRequest;
@@ -68,7 +69,7 @@ class AsignacionBrigadistasControllerTest {
     ) {
         return solicitud
                 .header("X-User-Id", usuarioId)
-                .header("X-User-Role", rol);
+                .header("X-User-Permission", PermisosPrueba.cabecera(rol));
     }
 
     @Test
@@ -78,7 +79,7 @@ class AsignacionBrigadistasControllerTest {
                 .thenReturn(respuesta());
 
         mockMvc.perform(
-                con(post("/api/v1/asignaciones"), "COORD-1", "COORDINATOR")
+                con(post("/api/v1/asignaciones"), "COORD-1", "COORDINADOR")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON_ASIGNACION)
         )
@@ -90,7 +91,7 @@ class AsignacionBrigadistasControllerTest {
     @Test
     void crearAsignacionConCuerpoInvalidoRecibe400() throws Exception {
         mockMvc.perform(
-                con(post("/api/v1/asignaciones"), "COORD-1", "COORDINATOR")
+                con(post("/api/v1/asignaciones"), "COORD-1", "COORDINADOR")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"brigadistaId":"","eventoId":"EVT-1",
@@ -99,7 +100,8 @@ class AsignacionBrigadistasControllerTest {
                                 """)
         )
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.codigo").value(400));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.codigo").value("VALIDACION"));
     }
 
     @Test
@@ -135,7 +137,7 @@ class AsignacionBrigadistasControllerTest {
 
         mockMvc.perform(
                 con(put("/api/v1/asignaciones/" + ID),
-                        "COORD-1", "COORDINATOR")
+                        "COORD-1", "COORDINADOR")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"ubicacionId":"ZONA-001",
@@ -154,7 +156,7 @@ class AsignacionBrigadistasControllerTest {
 
         mockMvc.perform(
                 con(patch("/api/v1/asignaciones/" + ID + "/retiro"),
-                        "COORD-1", "COORDINATOR")
+                        "COORD-1", "COORDINADOR")
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.idAsignacion").value(ID.toString()));
@@ -162,12 +164,12 @@ class AsignacionBrigadistasControllerTest {
 
     @Test
     void ms06CreaAsignacionesPredeterminadas() throws Exception {
-        when(service.crearAsignacionesPorDefecto(anyList(), eq("MS06")))
+        when(service.crearAsignacionesPorDefecto(anyList(), eq("ms06")))
                 .thenReturn(List.of(respuesta()));
 
         mockMvc.perform(
-                con(post("/api/v1/asignaciones/predeterminadas"),
-                        "MS06", "SERVICE_MS06")
+                post("/api/v1/asignaciones/predeterminadas")
+                        .header("X-Service-Name", "ms06")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[" + JSON_ASIGNACION + "]")
         )
@@ -193,7 +195,7 @@ class AsignacionBrigadistasControllerTest {
 
         mockMvc.perform(
                 con(get("/api/v1/asignaciones/evento/EVT-1"),
-                        "COORD-1", "COORDINATOR")
+                        "COORD-1", "COORDINADOR")
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].eventoId").value("EVT-1"));

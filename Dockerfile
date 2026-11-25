@@ -34,7 +34,7 @@ COPY --from=build --chown=10001:10001 \
 ENV EVIDENCIAS_DIRECTORIO=/app/uploads/evidencias
 
 # Puerto interno de Spring Boot
-EXPOSE 8080
+EXPOSE 8085
 
 # No ejecutar el proceso como root
 USER 10001:10001

@@ -1,6 +1,7 @@
-
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
+import org.junit.jupiter.api.AfterEach;
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
@@ -18,6 +19,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -52,6 +54,11 @@ class IncidenteServiceFlujoTest {
 
     private static final String BRIGADISTA_ID =
             "22222222-2222-2222-2222-222222222222";
+
+    @AfterEach
+    void limpiarSeguridad() {
+        PermisosPrueba.limpiar();
+    }
 
     @BeforeEach
     void setUp() {
@@ -137,6 +144,7 @@ class IncidenteServiceFlujoTest {
     @Test
     void usuarioGeneralPuedeRegistrarIncidentePropio() {
 
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
         UsuarioClient.UsuarioExterno usuario =
                 new UsuarioClient.UsuarioExterno(
                         USUARIO_ID,
@@ -180,7 +188,8 @@ class IncidenteServiceFlujoTest {
                 eq(EVENTO_ID),
                 eq(USUARIO_ID),
                 eq("EXITOSO"),
-                anyString()
+                anyString(),
+                anyMap()
         );
 
         verify(ubicacionClient).consultarUbicacion(
@@ -225,6 +234,7 @@ class IncidenteServiceFlujoTest {
     @Test
     void brigadistaActivoPuedeRegistrarIncidenteParaOtraPersona() {
 
+        PermisosPrueba.autenticarComo("BRIGADISTA");
         UsuarioClient.UsuarioExterno usuario =
                 new UsuarioClient.UsuarioExterno(
                         BRIGADISTA_ID,
@@ -292,6 +302,7 @@ class IncidenteServiceFlujoTest {
     @Test
     void noPermiteRegistrarIncidenteCuandoEventoNoEstaActivo() {
 
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
         UsuarioClient.UsuarioExterno usuario =
                 new UsuarioClient.UsuarioExterno(
                         USUARIO_ID,
@@ -328,6 +339,7 @@ class IncidenteServiceFlujoTest {
     @Test
     void noPermiteRegistrarIncidenteEnUbicacionInactiva() {
 
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
         UsuarioClient.UsuarioExterno usuario =
                 new UsuarioClient.UsuarioExterno(
                         USUARIO_ID,
@@ -366,6 +378,7 @@ class IncidenteServiceFlujoTest {
     @Test
     void noPermiteRegistrarIncidenteConPrioridadInexistente() {
 
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
         UsuarioClient.UsuarioExterno usuario =
                 new UsuarioClient.UsuarioExterno(
                         USUARIO_ID,
@@ -403,6 +416,7 @@ class IncidenteServiceFlujoTest {
     @Test
     void registraIncidenteComoAsignadoCuandoHayBrigadistaActivoEnLaUbicacion() {
 
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
         UsuarioClient.UsuarioExterno usuario =
                 new UsuarioClient.UsuarioExterno(
                         USUARIO_ID,

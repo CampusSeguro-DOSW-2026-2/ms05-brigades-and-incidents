@@ -44,4 +44,17 @@ public interface AsignacionBrigadistaRepository
             String brigadistaId,
             String estado
     );
+
+    List<AsignacionBrigadista> findByEventoIdAndBrigadistaIdAndEstado_Nombre(
+            String eventoId,
+            String brigadistaId,
+            String estado
+    );
+
+    long countByEventoIdAndUbicacionIdAndEstado_NombreAndIdAsignacionNot(
+            String eventoId,
+            String ubicacionId,
+            String estado,
+            UUID idAsignacion
+    );
 }

@@ -17,6 +17,8 @@ import edu.eci.dosw.brigades_and_incidents.repository.EstadoAsignacionRepository
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.TipoUbicacionRepository;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,8 +64,15 @@ class AsignacionBrigadistasServiceTest {
     private EstadoAsignacion retirada;
     private TipoUbicacion zonaSegura;
 
+    @AfterEach
+    void limpiarSeguridad() {
+        PermisosPrueba.limpiar();
+    }
+
     @BeforeEach
     void setUp() {
+        // Quien gestiona asignaciones en eventos reales (ms05:brigadier:assign_to_real)
+        PermisosPrueba.autenticarComo("COORDINADOR");
         vigente = mock(EstadoAsignacion.class);
         retirada = mock(EstadoAsignacion.class);
         zonaSegura = mock(TipoUbicacion.class);
@@ -334,7 +343,8 @@ class AsignacionBrigadistasServiceTest {
     @Test
     void noDebeRetirarAlUltimoBrigadistaConIncidentesPendientes() {
         UUID id = UUID.randomUUID();
-        AsignacionBrigadista asignacion = prepararAsignacion(id);
+        // Deja la asignación vigente que el servicio busca con findById; sin ella lanzaría "no encontrada"
+        prepararAsignacion(id);
 
         Incidente incidente = mock(Incidente.class);
         EstadoIncidente estadoIncidente = mock(EstadoIncidente.class);
@@ -460,5 +470,35 @@ class AsignacionBrigadistasServiceTest {
                 .thenReturn(vigente, retirada);
 
         return asignacion;
+    }
+
+    @Test
+    void elCoordinadorNoRetiraAsignacionesDeUnSimulacro() {
+        // ms05:brigadier:assign_to_real no alcanza para un simulacro: se exige assign_to_drill
+        TipoEventoResolver resolver = mock(TipoEventoResolver.class);
+        when(resolver.esSimulacro("SIM-1")).thenReturn(Optional.of(true));
+        service.usarTipoEventoResolver(resolver);
+        AsignacionBrigadista asignacion = new AsignacionBrigadista();
+        asignacion.setEventoId("SIM-1");
+        UUID id = UUID.randomUUID();
+        when(asignacionRepository.findById(id)).thenReturn(Optional.of(asignacion));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.retirarAsignacion(id, "C1"));
+    }
+
+    @Test
+    void elOrganizadorRetiraAsignacionesSoloConSuPermisoDeSimulacros() {
+        PermisosPrueba.autenticarComo("ORGANIZADOR");
+        TipoEventoResolver resolver = mock(TipoEventoResolver.class);
+        when(resolver.esSimulacro("EVT-REAL")).thenReturn(Optional.of(false));
+        service.usarTipoEventoResolver(resolver);
+        AsignacionBrigadista asignacion = new AsignacionBrigadista();
+        asignacion.setEventoId("EVT-REAL");
+        UUID id = UUID.randomUUID();
+        when(asignacionRepository.findById(id)).thenReturn(Optional.of(asignacion));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.retirarAsignacion(id, "O1"));
     }
 }

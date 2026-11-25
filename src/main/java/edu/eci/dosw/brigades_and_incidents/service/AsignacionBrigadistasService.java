@@ -8,7 +8,10 @@ import edu.eci.dosw.brigades_and_incidents.event.AsignacionAuditEvent;
 import edu.eci.dosw.brigades_and_incidents.exception.*;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
 
+import edu.eci.dosw.brigades_and_incidents.security.Permisos;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +33,7 @@ public class AsignacionBrigadistasService {
     private final IncidenteRepository incidenteRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UbicacionClient ubicacionClient;
+    private TipoEventoResolver tipoEventoResolver;
 
     public AsignacionBrigadistasService(
             AsignacionBrigadistaRepository asignacionRepository,
@@ -47,12 +51,33 @@ public class AsignacionBrigadistasService {
         this.ubicacionClient = ubicacionClient;
     }
 
+    /** Indica el tipo de los eventos para exigir el permiso de simulacros o el de eventos reales. */
+    @Autowired(required = false)
+    public void usarTipoEventoResolver(TipoEventoResolver tipoEventoResolver) {
+        this.tipoEventoResolver = tipoEventoResolver;
+    }
+
+    /**
+     * El coordinador asigna en eventos reales (ms05:brigadier:assign_to_real) y el organizador en simulacros
+     * (ms05:brigadier:assign_to_drill). Solo aplica a quien gestiona; la auto asignación del brigadista no pasa por aquí.
+     */
+    private void validarPermisoDelEvento(String eventoId) {
+        Boolean simulacro = tipoEventoResolver == null ? null : tipoEventoResolver.esSimulacro(eventoId).orElse(null);
+        if (!Permisos.tieneParaEvento(simulacro,
+                Permisos.BRIGADISTA_ASIGNAR_SIMULACRO, Permisos.BRIGADISTA_ASIGNAR_REAL)) {
+            throw new AccessDeniedException(AlcanceGestion.mensajeNoPermitido(Boolean.TRUE.equals(simulacro)));
+        }
+    }
+
     @Transactional
     public AsignacionResponse crearAsignacion(
             CrearAsignacionRequest request,
             String actorId) {
 
         validarIdentificadorActor(actorId);
+        if (Permisos.esGestor()) {
+            validarPermisoDelEvento(request.eventoId());
+        }
 
         validarDatos(
                 request.brigadistaId(),
@@ -103,6 +128,8 @@ public class AsignacionBrigadistasService {
 
         AsignacionBrigadista asignacion =
                 buscarAsignacion(idAsignacion);
+
+        validarPermisoDelEvento(asignacion.getEventoId());
 
         validarVigencia(asignacion);
 
@@ -166,6 +193,8 @@ public class AsignacionBrigadistasService {
 
         AsignacionBrigadista asignacion =
                 buscarAsignacion(idAsignacion);
+
+        validarPermisoDelEvento(asignacion.getEventoId());
 
         validarVigencia(asignacion);
 

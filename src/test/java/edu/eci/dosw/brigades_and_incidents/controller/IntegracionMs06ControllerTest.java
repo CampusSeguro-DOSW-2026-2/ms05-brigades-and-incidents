@@ -51,8 +51,8 @@ class IntegracionMs06ControllerTest {
             MockHttpServletRequestBuilder solicitud
     ) {
         return solicitud
-                .header("X-User-Id", "ms06")
-                .header("X-User-Role", "SERVICE_MS06");
+                // El Gateway deriva X-Service-Name de la clave de MS06 (Estándares §5)
+                .header("X-Service-Name", "ms06");
     }
 
     @Test

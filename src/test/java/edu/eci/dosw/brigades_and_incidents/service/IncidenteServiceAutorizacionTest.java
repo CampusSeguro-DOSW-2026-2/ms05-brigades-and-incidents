@@ -1,12 +1,14 @@
 
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.CrearIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.mapper.IncidenteMapper;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +70,11 @@ class IncidenteServiceAutorizacionTest {
 
     private static final String EVENTO_ID = "EVENTO-001";
 
+    @AfterEach
+    void limpiarSeguridad() {
+        PermisosPrueba.limpiar();
+    }
+
     @BeforeEach
     void configurar() {
         incidenteService = new IncidenteService(
@@ -111,6 +118,8 @@ class IncidenteServiceAutorizacionTest {
             List<String> roles,
             String estado
     ) {
+        // El actor autorizado tiene los permisos de sus roles (X-User-Permission).
+        PermisosPrueba.autenticarComo(String.join(",", roles));
         return new UsuarioClient.UsuarioExterno(
                 USUARIO_ID,
                 nombre,
@@ -227,7 +236,8 @@ class IncidenteServiceAutorizacionTest {
     }
 
     @Test
-    void usuarioConRolBrigadistaYAuditorNoPuedeRegistrar() {
+    void losPermisosDeTodosLosRolesSeSumanAlRegistrar() {
+        // El token lleva la unión de los permisos de sus roles: BRIGADISTA aporta ms05:incident:report.
         when(usuarioClient.consultarUsuario(USUARIO_ID))
                 .thenReturn(crearUsuario(
                         "Usuario con dos roles",
@@ -235,8 +245,8 @@ class IncidenteServiceAutorizacionTest {
                         "ACTIVO"
                 ));
 
-        ResponseStatusException excepcion = assertThrows(
-                ResponseStatusException.class,
+        assertThrows(
+                IllegalStateException.class,
                 () -> incidenteService.registrarIncidente(
                         EVENTO_ID,
                         crearSolicitudPropia(),
@@ -244,7 +254,7 @@ class IncidenteServiceAutorizacionTest {
                 )
         );
 
-        assertEquals(403, excepcion.getStatusCode().value());
+        verify(gestionEventoService).obtenerConfiguracion(EVENTO_ID);
     }
 
     // --------------------------------------------------

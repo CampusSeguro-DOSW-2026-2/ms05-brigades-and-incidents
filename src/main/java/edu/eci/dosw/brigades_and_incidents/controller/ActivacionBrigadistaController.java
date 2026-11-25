@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -23,11 +24,15 @@ public class ActivacionBrigadistaController {
         this.activarBrigadistaService = activarBrigadistaService;
     }
 
-    // Cambiar el estado de un brigadista. Solo coordinadores.
-    @PreAuthorize("hasRole('COORDINATOR')")
+    // Cambiar el estado de un brigadista: coordinadores y organizadores, o el propio brigadista
+    // (activarse o quedar no disponible).
+    @PreAuthorize(
+            "hasAnyAuthority('ms05:brigadier:assign_to_drill', 'ms05:brigadier:assign_to_real') "
+            + "or (hasAuthority('ms05:panel:read_own') and #brigadistaId == authentication.name)"
+    )
     @PutMapping("/{brigadistaId}/estado")
     public ResponseEntity<ActivacionBrigadistaResponse> cambiarEstado(
-            @PathVariable String brigadistaId,
+            @P("brigadistaId") @PathVariable String brigadistaId,
             @Valid @RequestBody CambiarEstadoBrigadistaRequest request
     ) {
 

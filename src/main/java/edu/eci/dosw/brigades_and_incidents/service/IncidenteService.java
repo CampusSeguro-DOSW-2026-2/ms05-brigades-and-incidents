@@ -1,4 +1,3 @@
-
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
@@ -17,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -165,6 +166,20 @@ public class IncidenteService {
         IncidenteResponse response =
                 incidenteMapper.toResponse(incidenteGuardado);
 
+        Map<String, Object> atributosAuditoria = new LinkedHashMap<>();
+        if (prioridad.getNombre() != null && !prioridad.getNombre().isBlank()) {
+            atributosAuditoria.put("prioridad", prioridad.getNombre());
+        }
+        String tipoUbicacionAuditoria = tipoUbicacion.getNombre() != null && !tipoUbicacion.getNombre().isBlank()
+                ? tipoUbicacion.getNombre()
+                : ubicacion.tipo();
+        if (tipoUbicacionAuditoria != null && !tipoUbicacionAuditoria.isBlank()) {
+            atributosAuditoria.put("ubicacion_tipo", tipoUbicacionAuditoria);
+        }
+        if (ubicacion.id() != null && !ubicacion.id().isBlank()) {
+            atributosAuditoria.put("ubicacion_id", ubicacion.id());
+        }
+
         auditPublisher.publicar(
                 "CREAR_INCIDENTE",
                 "INCIDENTE",
@@ -174,7 +189,8 @@ public class IncidenteService {
                 "EXITOSO",
                 responsableId != null
                         ? "Se registró el incidente y se asignó automáticamente un brigadista responsable."
-                        : "Se registró el incidente sin brigadista responsable disponible."
+                        : "Se registró el incidente sin brigadista responsable disponible.",
+                atributosAuditoria
         );
 
         return response;

@@ -1,6 +1,7 @@
-
 package edu.eci.dosw.brigades_and_incidents.service;
 
+import edu.eci.dosw.brigades_and_incidents.client.AuditoriaClient;
+import edu.eci.dosw.brigades_and_incidents.client.AuditoriaClient.EventoAuditoria;
 import edu.eci.dosw.brigades_and_incidents.entity.RegistroAuditoria;
 import edu.eci.dosw.brigades_and_incidents.entity.TipoRegistroAuditoria;
 import edu.eci.dosw.brigades_and_incidents.event.AsignacionAuditEvent;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -63,9 +65,7 @@ class RegistroAuditoriaTest {
         tipoIncidente.setNombre("INCIDENTE");
     }
 
-    // =====================================================
     // 1. REGISTRO DE ACCIONES
-    // =====================================================
 
     @Test
     void debeRegistrarUnaAccionCorrectamente() {
@@ -235,9 +235,7 @@ class RegistroAuditoriaTest {
         verify(registroRepository, never()).save(any());
     }
 
-    // =====================================================
     // 2. CONSULTAS DE AUDITORIA
-    // =====================================================
 
     @Test
     void debeConsultarRegistrosPorEvento() {
@@ -365,9 +363,7 @@ class RegistroAuditoriaTest {
         verifyNoInteractions(registroRepository);
     }
 
-    // =====================================================
     // 3. RECEPCION DE EVENTOS DE ASIGNACIONES
-    // =====================================================
 
     @Test
     void debeConvertirEventoDeAsignacionEnRegistroDeAuditoria() {
@@ -399,9 +395,7 @@ class RegistroAuditoriaTest {
         );
     }
 
-    // =====================================================
     // 4. RECEPCION DE EVENTOS DE INCIDENTES Y EVIDENCIAS
-    // =====================================================
 
     @Test
     void debeConvertirEventoDeIncidenteEnRegistroDeAuditoria() {
@@ -467,9 +461,112 @@ class RegistroAuditoriaTest {
         );
     }
 
-    // =====================================================
+    // 5. INTEGRACION CON MS08
+
+    @Test
+    void debeReenviarEventoDeIncidenteAMs08ConTipoEventoYAtributos() {
+        AuditoriaClient auditoriaClient = mock(AuditoriaClient.class);
+        TipoEventoResolver tipoEventoResolver = mock(TipoEventoResolver.class);
+        RegistroAuditoriaEventListener listenerMs08 = new RegistroAuditoriaEventListener(
+                auditoriaServiceMock, auditoriaClient, tipoEventoResolver
+        );
+
+        String eventoUuid = UUID.randomUUID().toString();
+        String usuarioUuid = UUID.randomUUID().toString();
+        when(tipoEventoResolver.esSimulacro(eventoUuid)).thenReturn(Optional.of(true));
+
+        IncidenteAuditEvent evento = new IncidenteAuditEvent(
+                "CREAR_INCIDENTE",
+                "INCIDENTE",
+                "incidente-123",
+                eventoUuid,
+                usuarioUuid,
+                "EXITOSO",
+                "Incidente creado",
+                OffsetDateTime.now(),
+                Map.of("prioridad", "ALTA", "ubicacion_tipo", "EDIFICIO", "ubicacion_id", "EDIF-1")
+        );
+
+        listenerMs08.escucharIncidente(evento);
+
+        ArgumentCaptor<EventoAuditoria> captor = ArgumentCaptor.forClass(EventoAuditoria.class);
+        verify(auditoriaClient).registrarEvento(captor.capture());
+
+        EventoAuditoria enviado = captor.getValue();
+        assertEquals("CREAR_INCIDENTE", enviado.accion());
+        assertEquals("INCIDENTE", enviado.recursoTipo());
+        assertEquals("incidente-123", enviado.recursoId());
+        assertEquals(eventoUuid, enviado.eventoId());
+        assertEquals(Boolean.TRUE, enviado.esSimulacro());
+        assertEquals("ALTA", enviado.atributos().get("prioridad"));
+        assertEquals("EDIF-1", enviado.atributos().get("ubicacion_id"));
+    }
+
+    @Test
+    void debeReenviarEventoDeAsignacionAMs08ConBrigadistaEnAtributos() {
+        AuditoriaClient auditoriaClient = mock(AuditoriaClient.class);
+        TipoEventoResolver tipoEventoResolver = mock(TipoEventoResolver.class);
+        RegistroAuditoriaEventListener listenerMs08 = new RegistroAuditoriaEventListener(
+                auditoriaServiceMock, auditoriaClient, tipoEventoResolver
+        );
+
+        UUID asignacionId = UUID.randomUUID();
+        String eventoUuid = UUID.randomUUID().toString();
+        when(tipoEventoResolver.esSimulacro(eventoUuid)).thenReturn(Optional.of(false));
+
+        AsignacionAuditEvent evento = new AsignacionAuditEvent(
+                asignacionId,
+                "ASIGNAR_BRIGADISTA",
+                UUID.randomUUID().toString(),
+                "brigadista-456",
+                eventoUuid,
+                LocalDateTime.now()
+        );
+
+        listenerMs08.escucharAsignacion(evento);
+
+        ArgumentCaptor<EventoAuditoria> captor = ArgumentCaptor.forClass(EventoAuditoria.class);
+        verify(auditoriaClient).registrarEvento(captor.capture());
+
+        EventoAuditoria enviado = captor.getValue();
+        assertEquals("ASIGNAR_BRIGADISTA", enviado.accion());
+        assertEquals("ASIGNACION", enviado.recursoTipo());
+        assertEquals(asignacionId.toString(), enviado.recursoId());
+        assertEquals(Boolean.FALSE, enviado.esSimulacro());
+        assertEquals("brigadista-456", enviado.atributos().get("brigadista_id"));
+    }
+
+    @Test
+    void siMs08FallaLaAuditoriaLocalSeGuardaSinLanzarExcepcion() {
+        AuditoriaClient auditoriaClient = mock(AuditoriaClient.class);
+        TipoEventoResolver tipoEventoResolver = mock(TipoEventoResolver.class);
+        RegistroAuditoriaEventListener listenerMs08 = new RegistroAuditoriaEventListener(
+                auditoriaServiceMock, auditoriaClient, tipoEventoResolver
+        );
+
+        doThrow(new RuntimeException("MS08 no disponible"))
+                .when(auditoriaClient).registrarEvento(any());
+
+        IncidenteAuditEvent evento = new IncidenteAuditEvent(
+                "INICIAR_ATENCION",
+                "INCIDENTE",
+                "incidente-123",
+                UUID.randomUUID().toString(),
+                UUID.randomUUID().toString(),
+                "EXITOSO",
+                "Atención iniciada",
+                OffsetDateTime.now(),
+                Map.of("ubicacion_tipo", "EDIFICIO", "ubicacion_id", "EDIF-1")
+        );
+
+        assertDoesNotThrow(() -> listenerMs08.escucharIncidente(evento));
+        verify(auditoriaServiceMock).registrarAccion(
+                eq("INCIDENTE"), any(), eq("INICIAR_ATENCION"), eq("INCIDENTE"),
+                eq("incidente-123"), any(), eq("MS05"), eq("EXITOSO"), any(), any()
+        );
+    }
+
     // METODO AUXILIAR
-    // =====================================================
 
     private void registrar(
             String tipo,

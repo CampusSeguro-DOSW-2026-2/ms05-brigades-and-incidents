@@ -1,4 +1,3 @@
-
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
@@ -20,6 +19,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -188,7 +188,8 @@ class IncidenteServiceFlujoTest {
                 eq(EVENTO_ID),
                 eq(USUARIO_ID),
                 eq("EXITOSO"),
-                anyString()
+                anyString(),
+                anyMap()
         );
 
         verify(ubicacionClient).consultarUbicacion(

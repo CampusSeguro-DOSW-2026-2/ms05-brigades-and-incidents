@@ -1,4 +1,3 @@
-
 package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.AlertaClient;
@@ -21,8 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -194,6 +195,16 @@ public class GestionAtencionIncidenteService {
                 "El brigadista inició la atención del incidente."
         );
 
+        Map<String, Object> atributosAuditoria = new LinkedHashMap<>();
+        if (actualizado.getTipoUbicacion() != null
+                && actualizado.getTipoUbicacion().getNombre() != null
+                && !actualizado.getTipoUbicacion().getNombre().isBlank()) {
+            atributosAuditoria.put("ubicacion_tipo", actualizado.getTipoUbicacion().getNombre());
+        }
+        if (actualizado.getUbicacionId() != null && !actualizado.getUbicacionId().isBlank()) {
+            atributosAuditoria.put("ubicacion_id", actualizado.getUbicacionId());
+        }
+
         auditPublisher.publicar(
                 "INICIAR_ATENCION",
                 "INCIDENTE",
@@ -201,7 +212,8 @@ public class GestionAtencionIncidenteService {
                 eventoId,
                 actorId,
                 "EXITOSO",
-                "Se inició la atención del incidente."
+                "Se inició la atención del incidente.",
+                atributosAuditoria
         );
 
         return construirRespuesta(

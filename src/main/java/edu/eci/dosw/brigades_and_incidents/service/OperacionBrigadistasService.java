@@ -2,6 +2,8 @@ package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.BrigadistaClient;
 import edu.eci.dosw.brigades_and_incidents.client.BrigadistaClient.BrigadistaExterno;
+import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
+import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient.UbicacionExterna;
 import edu.eci.dosw.brigades_and_incidents.dto.AutoasignacionEventoDTO;
 import edu.eci.dosw.brigades_and_incidents.dto.AutoasignacionResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.BrigadistaGestionDTO;
@@ -28,6 +30,8 @@ import edu.eci.dosw.brigades_and_incidents.repository.EstadoBrigadistaRepository
 import edu.eci.dosw.brigades_and_incidents.repository.IncidenteRepository;
 import edu.eci.dosw.brigades_and_incidents.repository.TipoUbicacionRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -48,19 +52,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Operación de brigadistas durante un evento:
- * <ul>
- *     <li>Panel de gestión del coordinador: lista de brigadistas (activos por edificio, luego inactivos), sus
- *     incidentes y el cambio de edificio, permitido solo en eventos reales.</li>
- *     <li>Auto asignación del brigadista: elegir, cambiar o quitar su edificio en eventos programados o en
- *     ejecución, simulacros incluidos.</li>
- * </ul>
- * Reglas comunes: un brigadista tiene un solo edificio por evento, debe estar activo para asignarse y ningún
- * edificio del evento puede quedar sin brigadistas por un cambio o un retiro.
- */
 @Service
 public class OperacionBrigadistasService {
+
+    private static final Logger log = LoggerFactory.getLogger(OperacionBrigadistasService.class);
 
     public static final String EVENTO_PROGRAMADO = "PROGRAMADO";
     public static final String EVENTO_EN_EJECUCION = "EN_EJECUCION";
@@ -82,6 +77,7 @@ public class OperacionBrigadistasService {
     private final TipoUbicacionRepository tipoUbicacionRepository;
     private final IncidenteRepository incidenteRepository;
     private final BrigadistaClient brigadistaClient;
+    private final UbicacionClient ubicacionClient;
     private final ApplicationEventPublisher eventPublisher;
 
     @SuppressWarnings("java:S107")
@@ -94,6 +90,7 @@ public class OperacionBrigadistasService {
             TipoUbicacionRepository tipoUbicacionRepository,
             IncidenteRepository incidenteRepository,
             BrigadistaClient brigadistaClient,
+            UbicacionClient ubicacionClient,
             ApplicationEventPublisher eventPublisher
     ) {
         this.configuracionRepository = configuracionRepository;
@@ -104,12 +101,11 @@ public class OperacionBrigadistasService {
         this.tipoUbicacionRepository = tipoUbicacionRepository;
         this.incidenteRepository = incidenteRepository;
         this.brigadistaClient = brigadistaClient;
+        this.ubicacionClient = ubicacionClient;
         this.eventPublisher = eventPublisher;
     }
 
-    // =====================================================
     // Eventos abiertos
-    // =====================================================
 
     /**
      * Eventos programados o en ejecución que puede gestionar quien consulta (el coordinador, los reales; el
@@ -117,15 +113,14 @@ public class OperacionBrigadistasService {
      */
     @Transactional(readOnly = true)
     public List<EventoOperacionDTO> consultarEventosAbiertos(AlcanceGestion alcance) {
+        Map<String, String> cacheNombres = new HashMap<>();
         return eventosAbiertos().stream()
                 .filter(configuracion -> alcance.permite(configuracion.isSimulacro()))
-                .map(configuracion -> convertirEvento(configuracion, alcance))
+                .map(configuracion -> convertirEvento(configuracion, alcance, cacheNombres))
                 .toList();
     }
 
-    // =====================================================
     // Panel de gestión (coordinador)
-    // =====================================================
 
     @Transactional
     public GestionBrigadistasEventoResponse consultarGestion(String eventoId, AlcanceGestion alcance) {
@@ -170,6 +165,8 @@ public class OperacionBrigadistasService {
                 .filter(incidente -> incidente.getBrigadistaResponsableId() != null)
                 .toList();
 
+        Map<String, String> cacheNombres = new HashMap<>();
+
         List<BrigadistaGestionDTO> brigadistas = ids.stream()
                 .map(id -> {
                     AsignacionBrigadista asignacion = asignacionPorBrigadista.get(id);
@@ -180,7 +177,7 @@ public class OperacionBrigadistasService {
                             estados.getOrDefault(id, INACTIVO),
                             asignacion == null ? null : asignacion.getIdAsignacion().toString(),
                             ubicacionId,
-                            ubicacionId == null ? null : nombreUbicacion(configuracion, ubicacionId),
+                            ubicacionId == null ? null : nombreUbicacion(configuracion, ubicacionId, cacheNombres),
                             contarIncidentes(incidentes, id, Set.of(INCIDENTE_EN_ATENCION)),
                             contarIncidentes(incidentes, id, INCIDENTES_RESUELTOS)
                     );
@@ -189,7 +186,7 @@ public class OperacionBrigadistasService {
                 .toList();
 
         return new GestionBrigadistasEventoResponse(
-                convertirEvento(configuracion, vigentes, alcance),
+                convertirEvento(configuracion, vigentes, alcance, cacheNombres),
                 brigadistas
         );
     }
@@ -224,8 +221,9 @@ public class OperacionBrigadistasService {
             );
         }
 
+        Map<String, String> cacheNombres = new HashMap<>();
         ZonaEvento zona = buscarZona(configuracion, ubicacionId);
-        AsignacionBrigadista asignacion = asignarEnEvento(configuracion, brigadistaId, zona, actorId);
+        AsignacionBrigadista asignacion = asignarEnEvento(configuracion, brigadistaId, zona, actorId, cacheNombres);
 
         return new BrigadistaGestionDTO(
                 brigadistaId,
@@ -233,31 +231,31 @@ public class OperacionBrigadistasService {
                 ACTIVO,
                 asignacion.getIdAsignacion().toString(),
                 zona.getZonaId(),
-                zona.getNombreVisible(),
+                resolverNombreZona(zona, cacheNombres),
                 0,
                 0
         );
     }
 
-    // =====================================================
     // Auto asignación (brigadista)
-    // =====================================================
 
     @Transactional
     public AutoasignacionResponse consultarAutoasignacion(String brigadistaId) {
         validarTexto(brigadistaId, "No se pudo identificar al brigadista.");
 
         Brigadista brigadista = obtenerOCrearBrigadista(brigadistaId);
+        Map<String, String> cacheNombres = new HashMap<>();
 
         List<AutoasignacionEventoDTO> eventos = eventosAbiertos().stream()
                 .map(configuracion -> {
                     Optional<AsignacionBrigadista> propia = asignacionVigente(
                             configuracion.getEventoId(), brigadistaId);
                     return new AutoasignacionEventoDTO(
-                            convertirEvento(configuracion),
+                            convertirEvento(configuracion, cacheNombres),
                             propia.map(a -> a.getIdAsignacion().toString()).orElse(null),
                             propia.map(AsignacionBrigadista::getUbicacionId).orElse(null),
-                            propia.map(a -> nombreUbicacion(configuracion, a.getUbicacionId())).orElse(null)
+                            propia.map(a -> nombreUbicacion(configuracion, a.getUbicacionId(), cacheNombres))
+                                    .orElse(null)
                     );
                 })
                 .toList();
@@ -288,14 +286,15 @@ public class OperacionBrigadistasService {
             );
         }
 
+        Map<String, String> cacheNombres = new HashMap<>();
         ZonaEvento zona = buscarZona(configuracion, ubicacionId);
-        AsignacionBrigadista asignacion = asignarEnEvento(configuracion, brigadistaId, zona, brigadistaId);
+        AsignacionBrigadista asignacion = asignarEnEvento(configuracion, brigadistaId, zona, brigadistaId, cacheNombres);
 
         return new AutoasignacionEventoDTO(
-                convertirEvento(configuracion),
+                convertirEvento(configuracion, cacheNombres),
                 asignacion.getIdAsignacion().toString(),
                 zona.getZonaId(),
-                zona.getNombreVisible()
+                resolverNombreZona(zona, cacheNombres)
         );
     }
 
@@ -319,25 +318,22 @@ public class OperacionBrigadistasService {
             );
         }
 
+        Map<String, String> cacheNombres = new HashMap<>();
         EstadoAsignacion retirada = buscarEstadoAsignacion(RETIRADA);
         for (AsignacionBrigadista asignacion : vigentes) {
-            validarNoDejarEdificioSinBrigadistas(configuracion, asignacion);
+            validarNoDejarEdificioSinBrigadistas(configuracion, asignacion, cacheNombres);
             asignacion.setEstado(retirada);
             AsignacionBrigadista guardada = asignacionRepository.save(asignacion);
             publicarAuditoria(guardada, "RETIRO", brigadistaId);
         }
 
         return new AutoasignacionEventoDTO(
-                convertirEvento(configuracion),
+                convertirEvento(configuracion, cacheNombres),
                 null,
                 null,
                 null
         );
     }
-
-    // =====================================================
-    // Reglas
-    // =====================================================
 
     /**
      * Deja al brigadista con una sola asignación vigente en el evento, en el edificio indicado. Si ya estaba en
@@ -347,7 +343,8 @@ public class OperacionBrigadistasService {
             ConfiguracionOperacionEvento configuracion,
             String brigadistaId,
             ZonaEvento zona,
-            String actorId
+            String actorId,
+            Map<String, String> cacheNombres
     ) {
         String eventoId = configuracion.getEventoId();
         List<AsignacionBrigadista> vigentes = asignacionRepository
@@ -358,7 +355,7 @@ public class OperacionBrigadistasService {
 
         if (yaEnEdificio) {
             throw new ConflictoOperacionException(
-                    "El brigadista ya está asignado a " + zona.getNombreVisible() + "."
+                    "El brigadista ya está asignado a " + resolverNombreZona(zona, cacheNombres) + "."
             );
         }
 
@@ -378,7 +375,7 @@ public class OperacionBrigadistasService {
         }
 
         for (AsignacionBrigadista anterior : vigentes) {
-            validarNoDejarEdificioSinBrigadistas(configuracion, anterior);
+            validarNoDejarEdificioSinBrigadistas(configuracion, anterior, cacheNombres);
         }
 
         // Una sola asignación por evento: se conserva la primera y se retiran las sobrantes (datos antiguos).
@@ -403,7 +400,8 @@ public class OperacionBrigadistasService {
     /** Un edificio del evento no puede quedar sin brigadistas: el único asignado no puede irse. */
     private void validarNoDejarEdificioSinBrigadistas(
             ConfiguracionOperacionEvento configuracion,
-            AsignacionBrigadista asignacion
+            AsignacionBrigadista asignacion,
+            Map<String, String> cacheNombres
     ) {
         long otros = asignacionRepository.countByEventoIdAndUbicacionIdAndEstado_NombreAndIdAsignacionNot(
                 asignacion.getEventoId(),
@@ -415,7 +413,7 @@ public class OperacionBrigadistasService {
         if (otros == 0) {
             throw new ConflictoOperacionException(
                     "No es posible: el brigadista es el único asignado a "
-                    + nombreUbicacion(configuracion, asignacion.getUbicacionId())
+                    + nombreUbicacion(configuracion, asignacion.getUbicacionId(), cacheNombres)
                     + " y el edificio no puede quedar sin brigadistas."
             );
         }
@@ -443,10 +441,7 @@ public class OperacionBrigadistasService {
                         "El edificio indicado no hace parte del evento."
                 ));
     }
-
-    // =====================================================
-    // Apoyo
-    // =====================================================
+   
 
     /** Orden del panel: activos con edificio (por edificio y nombre), activos sin edificio, inactivos. */
     static final Comparator<BrigadistaGestionDTO> ORDEN_PANEL = Comparator
@@ -469,22 +464,31 @@ public class OperacionBrigadistasService {
     }
 
     /** Evento para la vista del brigadista: nunca permite reasignar. */
-    private EventoOperacionDTO convertirEvento(ConfiguracionOperacionEvento configuracion) {
-        return convertirEvento(configuracion, (AlcanceGestion) null);
+    private EventoOperacionDTO convertirEvento(
+            ConfiguracionOperacionEvento configuracion,
+            Map<String, String> cacheNombres
+    ) {
+        return convertirEvento(configuracion, (AlcanceGestion) null, cacheNombres);
     }
 
-    private EventoOperacionDTO convertirEvento(ConfiguracionOperacionEvento configuracion, AlcanceGestion alcance) {
+    private EventoOperacionDTO convertirEvento(
+            ConfiguracionOperacionEvento configuracion,
+            AlcanceGestion alcance,
+            Map<String, String> cacheNombres
+    ) {
         return convertirEvento(
                 configuracion,
                 asignacionRepository.findByEventoIdAndEstado_Nombre(configuracion.getEventoId(), VIGENTE),
-                alcance
+                alcance,
+                cacheNombres
         );
     }
 
     private EventoOperacionDTO convertirEvento(
             ConfiguracionOperacionEvento configuracion,
             List<AsignacionBrigadista> vigentes,
-            AlcanceGestion alcance
+            AlcanceGestion alcance,
+            Map<String, String> cacheNombres
     ) {
         Map<String, Long> porUbicacion = vigentes.stream()
                 .collect(Collectors.groupingBy(AsignacionBrigadista::getUbicacionId, Collectors.counting()));
@@ -492,7 +496,7 @@ public class OperacionBrigadistasService {
         List<EdificioEventoDTO> edificios = configuracion.getZonas().stream()
                 .map(zona -> new EdificioEventoDTO(
                         zona.getZonaId(),
-                        zona.getNombreVisible(),
+                        resolverNombreZona(zona, cacheNombres),
                         zona.getTipoUbicacion(),
                         porUbicacion.getOrDefault(zona.getZonaId(), 0L)
                 ))
@@ -518,10 +522,46 @@ public class OperacionBrigadistasService {
                 .findFirst();
     }
 
-    private String nombreUbicacion(ConfiguracionOperacionEvento configuracion, String ubicacionId) {
+    private String nombreUbicacion(
+            ConfiguracionOperacionEvento configuracion,
+            String ubicacionId,
+            Map<String, String> cacheNombres
+    ) {
         return configuracion.buscarZona(ubicacionId)
-                .map(ZonaEvento::getNombreVisible)
+                .map(zona -> resolverNombreZona(zona, cacheNombres))
                 .orElse(ubicacionId);
+    }
+
+    /**
+     * Resuelve el nombre visible de una zona del evento: si MS06 ya envió el nombre, lo usa directamente;
+     * si llegó vacío o nulo, consulta MS02 como respaldo (con caché por petición) y, si MS02 no responde
+     * o no lo encuentra, devuelve el id como último recurso.
+     */
+    private String resolverNombreZona(ZonaEvento zona, Map<String, String> cacheNombres) {
+        if (zona.getNombre() != null && !zona.getNombre().isBlank()) {
+            return zona.getNombre().trim();
+        }
+        String clave = zona.getTipoUbicacion() + "|" + zona.getZonaId();
+        return cacheNombres.computeIfAbsent(clave, k -> consultarNombreEnMs02(zona));
+    }
+
+    private String consultarNombreEnMs02(ZonaEvento zona) {
+        if (ubicacionClient == null) {
+            return zona.getZonaId();
+        }
+        try {
+            UbicacionExterna externa = ubicacionClient.consultarUbicacion(
+                    zona.getZonaId(),
+                    zona.getTipoUbicacion()
+            );
+            if (externa != null && externa.nombre() != null && !externa.nombre().isBlank()) {
+                return externa.nombre().trim();
+            }
+        } catch (RuntimeException exception) {
+            log.warn("No fue posible resolver el nombre de la ubicación {} ({}) en MS02; se usa el id.",
+                    zona.getZonaId(), zona.getTipoUbicacion());
+        }
+        return zona.getZonaId();
     }
 
     private long contarIncidentes(List<Incidente> incidentes, String brigadistaId, Set<String> estados) {

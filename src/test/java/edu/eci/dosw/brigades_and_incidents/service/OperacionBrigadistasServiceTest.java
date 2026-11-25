@@ -2,9 +2,12 @@ package edu.eci.dosw.brigades_and_incidents.service;
 
 import edu.eci.dosw.brigades_and_incidents.client.BrigadistaClient;
 import edu.eci.dosw.brigades_and_incidents.client.BrigadistaClient.BrigadistaExterno;
+import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient;
+import edu.eci.dosw.brigades_and_incidents.client.UbicacionClient.UbicacionExterna;
 import edu.eci.dosw.brigades_and_incidents.dto.AutoasignacionEventoDTO;
 import edu.eci.dosw.brigades_and_incidents.dto.AutoasignacionResponse;
 import edu.eci.dosw.brigades_and_incidents.dto.BrigadistaGestionDTO;
+import edu.eci.dosw.brigades_and_incidents.dto.EdificioEventoDTO;
 import edu.eci.dosw.brigades_and_incidents.dto.EventoOperacionDTO;
 import edu.eci.dosw.brigades_and_incidents.dto.GestionBrigadistasEventoResponse;
 import edu.eci.dosw.brigades_and_incidents.entity.AsignacionBrigadista;
@@ -37,6 +40,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -52,7 +56,9 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,6 +77,7 @@ class OperacionBrigadistasServiceTest {
     @Mock private TipoUbicacionRepository tipoUbicacionRepository;
     @Mock private IncidenteRepository incidenteRepository;
     @Mock private BrigadistaClient brigadistaClient;
+    @Mock private UbicacionClient ubicacionClient;
     @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
@@ -141,7 +148,7 @@ class OperacionBrigadistasServiceTest {
         return incidente;
     }
 
-    // ===== Eventos abiertos =====
+    // Eventos abiertos 
 
     @Test
     void consultaEventosAbiertosConEdificiosOrdenadosYConteo() {
@@ -161,7 +168,7 @@ class OperacionBrigadistasServiceTest {
         assertEquals(0, dto.edificios().get(1).brigadistasAsignados());
     }
 
-    // ===== Panel de gestión =====
+    // Panel de gestión 
 
     @Test
     void panelOrdenaActivosPorEdificioYDespuesInactivos() {
@@ -236,7 +243,7 @@ class OperacionBrigadistasServiceTest {
         assertThrows(RecursoNoEncontradoException.class, () -> service.consultarGestion("NO", COORD));
     }
 
-    // ===== Cambio de asignación por el coordinador =====
+    // Cambio de asignación por el coordinador 
 
     @Test
     void coordinadorAsignaBrigadistaSinEdificio() {
@@ -364,7 +371,7 @@ class OperacionBrigadistasServiceTest {
                 () -> service.cambiarAsignacion(EVENTO, "B1", EDIF_A, " ", COORD));
     }
 
-    // ===== Auto asignación =====
+    // Auto asignación 
 
     @Test
     void consultaAutoasignacionRegistraAlBrigadistaNuevoComoInactivo() {
@@ -476,5 +483,114 @@ class OperacionBrigadistasServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.autoasignarse(EVENTO, null, EDIF_A));
         assertThrows(IllegalArgumentException.class, () -> service.retirarAutoasignacion(EVENTO, ""));
         assertThrows(IllegalArgumentException.class, () -> service.consultarAutoasignacion(" "));
+    }
+
+    // Respaldo de nombres de ubicaciones en MS02 
+
+    @Test
+    void noConsultaMs02CuandoZonasYaTienenNombre() {
+        ConfiguracionOperacionEvento configuracion = evento("PROGRAMADO", false);
+        when(configuracionRepository.findByEstadoEventoIn(anyCollection())).thenReturn(List.of(configuracion));
+
+        service.consultarEventosAbiertos(COORD);
+
+        verifyNoInteractions(ubicacionClient);
+    }
+
+    @Test
+    void resuelveNombresSinGuardarEnMs02ConCacheYOrdenaPanelPorNombre() {
+        ConfiguracionOperacionEvento configuracion = new ConfiguracionOperacionEvento(EVENTO);
+        configuracion.registrarDatosEvento("Evacuación", false, "EN_EJECUCION", List.of(
+                new ZonaEvento("uuid-1", null, "ZONA_SEGURA"),
+                new ZonaEvento("uuid-9", " ", "EDIFICIO")
+        ));
+        when(configuracionRepository.findById(EVENTO)).thenReturn(Optional.of(configuracion));
+        when(ubicacionClient.consultarUbicacion("uuid-1", "ZONA_SEGURA"))
+                .thenReturn(new UbicacionExterna("uuid-1", "Plazoleta Sur", "ZONA_SEGURA", true));
+        when(ubicacionClient.consultarUbicacion("uuid-9", "EDIFICIO"))
+                .thenReturn(new UbicacionExterna("uuid-9", "Bloque A", "EDIFICIO", true));
+        when(brigadistaClient.listarBrigadistas()).thenReturn(List.of(
+                new BrigadistaExterno("B1", "Carlos", "BRIGADISTA"),
+                new BrigadistaExterno("B2", "Diana", "BRIGADISTA"),
+                new BrigadistaExterno("B3", "Elena", "BRIGADISTA")
+        ));
+        when(brigadistaRepository.findByUsuarioIdExternoIn(anyCollection())).thenReturn(List.of(
+                new Brigadista("B1", activo),
+                new Brigadista("B2", activo),
+                new Brigadista("B3", activo)
+        ));
+        when(asignacionRepository.findByEventoIdAndEstado_Nombre(EVENTO, "VIGENTE")).thenReturn(List.of(
+                asignacion("B1", "uuid-1"),
+                asignacion("B2", "uuid-9"),
+                asignacion("B3", "uuid-9")
+        ));
+
+        GestionBrigadistasEventoResponse respuesta = service.consultarGestion(EVENTO, COORD);
+
+        // Edificios ordenados por el nombre resuelto ("Bloque A" antes de "Plazoleta Sur")
+        assertEquals(List.of("Bloque A", "Plazoleta Sur"),
+                respuesta.evento().edificios().stream().map(EdificioEventoDTO::nombre).toList());
+
+        // Brigadistas ordenados por nombre de ubicación resuelto y luego por nombre
+        assertEquals(List.of("B2", "B3", "B1"),
+                respuesta.brigadistas().stream().map(BrigadistaGestionDTO::brigadistaId).toList());
+        assertEquals("Bloque A", respuesta.brigadistas().get(0).nombreUbicacion());
+        assertEquals("Plazoleta Sur", respuesta.brigadistas().get(2).nombreUbicacion());
+
+        // El caché evita repetir llamadas a MS02 dentro de la misma consulta
+        verify(ubicacionClient, times(1)).consultarUbicacion("uuid-9", "EDIFICIO");
+        verify(ubicacionClient, times(1)).consultarUbicacion("uuid-1", "ZONA_SEGURA");
+    }
+
+    @Test
+    void resuelveNombresEnAutoasignacionCompartiendoCacheEntreEventos() {
+        ConfiguracionOperacionEvento evento1 = new ConfiguracionOperacionEvento(EVENTO);
+        evento1.registrarDatosEvento("Evento 1", false, "PROGRAMADO", List.of(
+                new ZonaEvento("uuid-edif", null, "EDIFICIO")
+        ));
+        ConfiguracionOperacionEvento evento2 = new ConfiguracionOperacionEvento("EVT-2");
+        evento2.registrarDatosEvento("Evento 2", true, "PROGRAMADO", List.of(
+                new ZonaEvento("uuid-edif", null, "EDIFICIO")
+        ));
+
+        brigadista("B1", activo);
+        when(configuracionRepository.findByEstadoEventoIn(anyCollection())).thenReturn(List.of(evento1, evento2));
+        when(asignacionRepository.findByEventoIdAndBrigadistaIdAndEstado_Nombre(EVENTO, "B1", "VIGENTE"))
+                .thenReturn(List.of(asignacion("B1", "uuid-edif")));
+        when(ubicacionClient.consultarUbicacion("uuid-edif", "EDIFICIO"))
+                .thenReturn(new UbicacionExterna("uuid-edif", "Edificio C", "EDIFICIO", true));
+
+        AutoasignacionResponse respuesta = service.consultarAutoasignacion("B1");
+
+        assertEquals(2, respuesta.eventos().size());
+        assertEquals("Edificio C", respuesta.eventos().get(0).nombreUbicacion());
+        assertEquals("Edificio C", respuesta.eventos().get(0).evento().edificios().get(0).nombre());
+        assertEquals("Edificio C", respuesta.eventos().get(1).evento().edificios().get(0).nombre());
+
+        // Solo consulta una vez a MS02 aunque la misma zona aparezca en dos eventos y en la asignación
+        verify(ubicacionClient, times(1)).consultarUbicacion("uuid-edif", "EDIFICIO");
+    }
+
+    @Test
+    void siMs02FallaODevuelveNuloUsaElIdComoUltimoRecursoSinFallar() {
+        ConfiguracionOperacionEvento configuracion = new ConfiguracionOperacionEvento(EVENTO);
+        configuracion.registrarDatosEvento("Evacuación", false, "PROGRAMADO", List.of(
+                new ZonaEvento("uuid-caido", null, "EDIFICIO"),
+                new ZonaEvento("uuid-nulo", null, "ZONA_SEGURA"),
+                new ZonaEvento("uuid-vacio", null, "EDIFICIO")
+        ));
+        when(configuracionRepository.findByEstadoEventoIn(anyCollection())).thenReturn(List.of(configuracion));
+        when(ubicacionClient.consultarUbicacion("uuid-caido", "EDIFICIO"))
+                .thenThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "MS02 caído"));
+        when(ubicacionClient.consultarUbicacion("uuid-nulo", "ZONA_SEGURA"))
+                .thenReturn(null);
+        when(ubicacionClient.consultarUbicacion("uuid-vacio", "EDIFICIO"))
+                .thenReturn(new UbicacionExterna("uuid-vacio", "   ", "EDIFICIO", true));
+
+        List<EventoOperacionDTO> eventos = service.consultarEventosAbiertos(COORD);
+
+        assertEquals(1, eventos.size());
+        assertEquals(List.of("uuid-caido", "uuid-nulo", "uuid-vacio"),
+                eventos.get(0).edificios().stream().map(EdificioEventoDTO::nombre).toList());
     }
 }

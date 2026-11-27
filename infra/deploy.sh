@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Despliega MS05 en su VM: stack ms05-<entorno> (MS05 + PostgreSQL) detrás del Caddy de borde, y verifica el despliegue.
+# Despliega MS05 en su VM: stack ms05-<entorno> (solo MS05; la base de datos es una instancia RDS externa al
+# stack) detrás del Caddy de borde, y verifica el despliegue.
 # Lo ejecuta el runner self-hosted desde .github/workflows/deploy.yml con las variables y secretos del Environment
 # ms05-<entorno> de GitHub. Es idempotente: volver a ejecutarlo con otro TAG es el rollback.
 # El borde (Caddy con mTLS) se levanta una sola vez a mano, con la guía "Conexión al API Gateway" de la wiki.
 set -euo pipefail
 
 falta() { echo "::error::Falta la variable $1 (Environment ms05-${ENTORNO:-?} en GitHub)" >&2; exit 1; }
-for VAR in ENTORNO DB_PASSWORD GATEWAY_URL GATEWAY_SERVICE_KEY; do
+for VAR in ENTORNO SPRING_DATASOURCE_URL SPRING_DATASOURCE_USERNAME SPRING_DATASOURCE_PASSWORD GATEWAY_URL GATEWAY_SERVICE_KEY; do
     [ -n "${!VAR:-}" ] || falta "$VAR"
 done
 [[ "$ENTORNO" =~ ^(test|prod)$ ]] || { echo "::error::ENTORNO debe ser test o prod" >&2; exit 1; }
@@ -34,23 +35,17 @@ linea_env() {
 }
 
 umask 077
-mkdir -p "$STACK_DIR/db" "$STACK_DIR/database/init" "$STACK_DIR/database/migrations"
 
 echo "== Archivos del despliegue ($ENTORNO, $TAG) en $STACK_DIR"
 cp "$REPO_DIR/infra/docker-compose.prod.yml" "$STACK_DIR/docker-compose.yml"
-# Esquema inicial: initdb.d ejecuta 01-initialize-ms05.sh, que aplica database/init y database/migrations
-cp "$REPO_DIR"/infra/db/*.sh "$STACK_DIR/db/"
-cp "$REPO_DIR"/database/init/*.sql "$STACK_DIR/database/init/"
-cp "$REPO_DIR"/database/migrations/*.sql "$STACK_DIR/database/migrations/"
-# Postgres lee los scripts con su propio usuario: las carpetas del esquema no llevan secretos.
-chmod 755 "$STACK_DIR/db" "$STACK_DIR/database" "$STACK_DIR/database/init" "$STACK_DIR/database/migrations"
-chmod 755 "$STACK_DIR"/db/*.sh
-chmod 644 "$STACK_DIR"/database/init/*.sql "$STACK_DIR"/database/migrations/*.sql
+# El esquema ya no viaja al stack: la base es RDS y los scripts de database/ solo se usan en local.
 {
     linea_env ENTORNO "$ENTORNO"
     linea_env IMAGE "$IMAGE"
     linea_env TAG "$TAG"
-    linea_env DB_PASSWORD "$DB_PASSWORD"
+    linea_env SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL"
+    linea_env SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME"
+    linea_env SPRING_DATASOURCE_PASSWORD "$SPRING_DATASOURCE_PASSWORD"
     linea_env GATEWAY_URL "$GATEWAY_URL"
     linea_env GATEWAY_SERVICE_KEY "$GATEWAY_SERVICE_KEY"
 } > "$STACK_DIR/.env"

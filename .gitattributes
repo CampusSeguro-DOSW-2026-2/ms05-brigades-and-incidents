@@ -1,2 +1,11 @@
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# Los scripts y workflows se ejecutan en Linux aunque el repositorio se toque en Windows.
+# Sin esto, git guarda CRLF y el runner falla con "set: pipefail: invalid option name".
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+infra/*.yml text eol=lf
+infra/*.yaml text eol=lf
+infra/Caddyfile text eol=lf

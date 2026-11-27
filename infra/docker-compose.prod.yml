@@ -1,45 +1,22 @@
-# Stack de MS05 en la nube: uno por entorno en la misma VM (ms05-prod y ms05-test), cada uno con su BD y sus
-# evidencias. No publica puertos: solo el Caddy de borde de la VM (red campus-edge) llega a MS05, con el alias
-# ms05-<entorno>, y la BD solo es visible dentro del stack. Lo usa infra/deploy.sh con el .env que escribe en
-# DEPLOY_DIR/<entorno>; no se ejecuta a mano.
+# Stack de MS05 en la nube: uno por entorno en la misma VM (ms05-prod y ms05-test), cada uno con sus evidencias.
+# La base de datos NO vive en el stack: es una instancia administrada (RDS) fuera de la VM y se alcanza por su
+# endpoint con TLS. No publica puertos: solo el Caddy de borde de la VM (red campus-edge) llega a MS05, con el
+# alias ms05-<entorno>. Lo usa infra/deploy.sh con el .env que escribe en DEPLOY_DIR/<entorno>; no se ejecuta a mano.
 name: ms05-${ENTORNO:?ENTORNO es obligatoria (test o prod)}
 
 services:
-  db:
-    image: postgres:17.6-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: brigades_incidents_db
-      POSTGRES_USER: ms05_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatoria}
-    volumes:
-      - datos:/var/lib/postgresql/data
-      # Esquema inicial: initdb.d ejecuta 01-initialize-ms05.sh, que aplica database/init y database/migrations.
-      # Postgres solo lo hace la primera vez, con el volumen vacío.
-      - ./db:/docker-entrypoint-initdb.d:ro
-      - ./database/init:/database-init:ro
-      - ./database/migrations:/migrations:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ms05_user -d brigades_incidents_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-    networks:
-      - interna
-
   ms05:
     image: ${IMAGE:?IMAGE es obligatoria}:${TAG:?TAG es obligatoria (sha-xxxxxxx)}
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/brigades_incidents_db
-      SPRING_DATASOURCE_USERNAME: ms05_user
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD es obligatoria}
+      # Base administrada (RDS). TLS obligatorio: con `rds.force_ssl=1` una conexión sin
+      # cifrar se rechaza, así que la URL debe llevar `sslmode=require`.
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL es obligatoria (jdbc:postgresql://<endpoint>:5432/<base>?sslmode=require)}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME es obligatoria (ms05_user o ms05_prod)}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD es obligatoria}
       SPRING_JPA_SHOW_SQL: "false"
       SERVER_PORT: "8085"
-      # Llamadas a MS01 y MS02 a través del Gateway, con la clave de MS05 (Estándares §5)
+      # Llamadas a MS01, MS02, MS03 y MS08 a través del Gateway, con la clave de MS05 (Estándares §5)
       MS05_GATEWAY_URL: ${GATEWAY_URL:?GATEWAY_URL es obligatoria (https://<dominio del GW> o :8443)}
       GW_SERVICE_KEY_MS05: ${GATEWAY_SERVICE_KEY:?GATEWAY_SERVICE_KEY es obligatoria}
       EVIDENCIAS_DIRECTORIO: /app/uploads/evidencias
@@ -50,17 +27,14 @@ services:
     volumes:
       - evidencias:/app/uploads/evidencias
     networks:
-      interna:
       edge:
         aliases:
           - ms05-${ENTORNO}
 
 volumes:
-  datos:
   evidencias:
 
 networks:
-  interna:
   edge:
     name: campus-edge
     external: true

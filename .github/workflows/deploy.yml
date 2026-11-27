@@ -45,5 +45,7 @@ jobs:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
           GATEWAY_URL: ${{ vars.GATEWAY_URL }}
           MS05_EXTRA_ENV: ${{ vars.MS05_EXTRA_ENV }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SPRING_DATASOURCE_URL: ${{ vars.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_USERNAME: ${{ vars.SPRING_DATASOURCE_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
           GATEWAY_SERVICE_KEY: ${{ secrets.GATEWAY_SERVICE_KEY }}

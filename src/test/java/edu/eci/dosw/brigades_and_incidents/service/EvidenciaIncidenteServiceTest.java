@@ -145,6 +145,53 @@ class EvidenciaIncidenteServiceTest {
     }
 
     @Test
+    void puedeCargarEvidenciaJpeg() {
+
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo",
+                "evidencia.jpg",
+                "image/jpeg",
+                new byte[]{1, 2, 3}
+        );
+
+        var respuesta = evidenciaService.cargarEvidencia(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                archivo,
+                USUARIO_ID
+        );
+
+        assertNotNull(respuesta);
+        assertEquals("evidencia.jpg", respuesta.nombreArchivo());
+        assertEquals("image/jpeg", respuesta.tipoContenido());
+
+        verify(evidenciaRepository).save(any(EvidenciaIncidente.class));
+    }
+
+    @Test
+    void rechazaImagenSvg() {
+
+        MockMultipartFile archivo = new MockMultipartFile(
+                "archivo",
+                "evidencia.svg",
+                "image/svg+xml",
+                new byte[]{1, 2, 3}
+        );
+
+        assertThrows(
+                EvidenciaIncidenteException.class,
+                () -> evidenciaService.cargarEvidencia(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        archivo,
+                        USUARIO_ID
+                )
+        );
+
+        verify(evidenciaStorage, never()).guardar(any());
+    }
+
+    @Test
     void rechazaArchivoVacio() {
 
         MockMultipartFile archivo = new MockMultipartFile(

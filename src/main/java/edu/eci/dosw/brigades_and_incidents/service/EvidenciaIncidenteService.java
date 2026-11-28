@@ -33,7 +33,15 @@ public class EvidenciaIncidenteService {
     private static final int MAXIMO_EVIDENCIAS = 5;
 
     private static final Set<String> TIPOS_PERMITIDOS = Set.of(
+            "image/jpeg",
+            "image/jpg",
             "image/png",
+            "image/webp",
+            "image/gif",
+            "image/bmp",
+            "image/tiff",
+            "image/heic",
+            "image/heif",
             "application/pdf",
             "video/mp4"
     );
@@ -377,7 +385,7 @@ public class EvidenciaIncidenteService {
                 || !TIPOS_PERMITIDOS.contains(tipoContenido)) {
             throw new EvidenciaIncidenteException(
                     "El formato no está permitido. "
-                            + "Solo se aceptan PNG, PDF y MP4."
+                            + "Se aceptan imágenes JPG, PNG, WEBP, GIF, BMP, TIFF o HEIC, PDF y MP4."
             );
         }
 

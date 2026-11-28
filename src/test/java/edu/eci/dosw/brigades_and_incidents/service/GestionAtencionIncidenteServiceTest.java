@@ -373,8 +373,9 @@ class GestionAtencionIncidenteServiceTest {
 
         when(asignacion.getBrigadistaId()).thenReturn(BRIGADISTA_ID);
         when(asignacion.getUbicacionId()).thenReturn(UBICACION_ID);
-        when(asignacion.getTipoUbicacion()).thenReturn(tipoUbicacion);
-        when(tipoUbicacion.getNombre()).thenReturn("EDIFICIO");
+        // La ubicación se compara solo por id; el tipo no se usa.
+        lenient().when(asignacion.getTipoUbicacion()).thenReturn(tipoUbicacion);
+        lenient().when(tipoUbicacion.getNombre()).thenReturn("EDIFICIO");
 
         when(historialRepository
                 .findByIncidente_IdOrderByFechaCambioAsc(INCIDENTE_ID))
@@ -936,6 +937,73 @@ class GestionAtencionIncidenteServiceTest {
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        verify(incidenteRepository, never()).save(any());
+    }
+
+    // --------------------------------------------------
+    // ATENCIÓN EN UN PUNTO DE ENCUENTRO
+    // --------------------------------------------------
+
+    /**
+     * Incidente pedido desde el check-in en una zona (PUNTO_ENCUENTRO) con el brigadista auto asignado a esa
+     * misma zona (ZONA_SEGURA). Es la misma ubicación de MS02, así que puede atenderlo.
+     */
+    private Incidente prepararIncidenteEnPuntoDeEncuentro(String ubicacionAsignada) {
+        Incidente incidente = crearIncidente();
+        TipoUbicacion puntoEncuentro = mock(TipoUbicacion.class);
+        lenient().when(puntoEncuentro.getNombre()).thenReturn("PUNTO_ENCUENTRO");
+        lenient().when(incidente.getTipoUbicacion()).thenReturn(puntoEncuentro);
+        EstadoIncidente asignado = mock(EstadoIncidente.class);
+        lenient().when(asignado.getNombre()).thenReturn("ASIGNADO");
+        lenient().when(incidente.getEstado()).thenReturn(asignado);
+
+        Brigadista brigadista = mock(Brigadista.class);
+        EstadoBrigadista activo = mock(EstadoBrigadista.class);
+        AsignacionBrigadista asignacion = mock(AsignacionBrigadista.class);
+        TipoUbicacion zonaSegura = mock(TipoUbicacion.class);
+        lenient().when(zonaSegura.getNombre()).thenReturn("ZONA_SEGURA");
+
+        when(usuarioClient.consultarUsuario(BRIGADISTA_ID))
+                .thenReturn(crearUsuario(BRIGADISTA_ID, List.of("BRIGADISTA")));
+        when(brigadistaRepository.findByUsuarioIdExterno(BRIGADISTA_ID)).thenReturn(Optional.of(brigadista));
+        when(brigadista.getEstado()).thenReturn(activo);
+        when(activo.getNombre()).thenReturn("ACTIVO");
+        when(asignacionRepository.findByEventoIdAndEstado_Nombre(EVENTO_ID, "VIGENTE"))
+                .thenReturn(List.of(asignacion));
+        when(asignacion.getBrigadistaId()).thenReturn(BRIGADISTA_ID);
+        when(asignacion.getUbicacionId()).thenReturn(ubicacionAsignada);
+        lenient().when(asignacion.getTipoUbicacion()).thenReturn(zonaSegura);
+
+        PermisosPrueba.autenticarComo("BRIGADISTA");
+        when(incidenteRepository.findById(INCIDENTE_ID)).thenReturn(Optional.of(incidente));
+        return incidente;
+    }
+
+    @Test
+    void brigadistaDeLaZonaPuedeAtenderUnIncidenteDePuntoDeEncuentro() {
+        Incidente incidente = prepararIncidenteEnPuntoDeEncuentro(UBICACION_ID);
+        when(incidenteRepository.save(any(Incidente.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        EstadoIncidente enAtencion = mock(EstadoIncidente.class);
+        when(estadoIncidenteRepository.findByNombre("EN_ATENCION")).thenReturn(Optional.of(enAtencion));
+        prepararGuardadoHistorial();
+
+        service.iniciarAtencion(EVENTO_ID, INCIDENTE_ID, BRIGADISTA_ID);
+
+        verify(incidente).setEstado(enAtencion);
+        verify(incidenteRepository).save(incidente);
+    }
+
+    @Test
+    void brigadistaDeOtraZonaNoPuedeAtenderUnIncidenteDePuntoDeEncuentro() {
+        prepararIncidenteEnPuntoDeEncuentro("ZONA-OTRA");
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.iniciarAtencion(EVENTO_ID, INCIDENTE_ID, BRIGADISTA_ID)
+        );
+
+        assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
         verify(incidenteRepository, never()).save(any());
     }
 }

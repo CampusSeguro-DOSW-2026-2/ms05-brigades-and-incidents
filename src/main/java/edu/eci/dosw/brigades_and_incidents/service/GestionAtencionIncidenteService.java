@@ -452,6 +452,8 @@ public class GestionAtencionIncidenteService {
             );
         }
 
+        // Se compara solo el id de la ubicación (id de MS02, único): una misma zona segura llega de MS04 como
+        // PUNTO_ENCUENTRO y queda en la asignación como ZONA_SEGURA, igual que en la asignación automática.
         boolean tieneAsignacionVigente = asignacionRepository
                 .findByEventoIdAndEstado_Nombre(
                         incidente.getEventoId(),
@@ -462,9 +464,6 @@ public class GestionAtencionIncidenteService {
                         responsableId.equals(asignacion.getBrigadistaId())
                         && incidente.getUbicacionId().equals(
                                 asignacion.getUbicacionId()
-                        )
-                        && incidente.getTipoUbicacion().getNombre().equals(
-                                asignacion.getTipoUbicacion().getNombre()
                         )
                 );
 

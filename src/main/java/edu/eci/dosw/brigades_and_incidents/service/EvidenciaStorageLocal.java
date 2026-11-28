@@ -82,6 +82,28 @@ public class EvidenciaStorageLocal implements EvidenciaStorage {
         }
     }
 
+    @Override
+    public Path resolver(String referenciaArchivo) {
+
+        if (referenciaArchivo == null || referenciaArchivo.isBlank()) {
+            throw new IllegalArgumentException(
+                    "La referencia de la evidencia es obligatoria."
+            );
+        }
+
+        Path archivo = Paths.get(referenciaArchivo)
+                .toAbsolutePath()
+                .normalize();
+
+        if (!archivo.startsWith(directorio)) {
+            throw new IllegalArgumentException(
+                    "La ruta del archivo no es válida."
+            );
+        }
+
+        return archivo;
+    }
+
     private String obtenerExtension(String nombreArchivo) {
 
         if (nombreArchivo == null) {

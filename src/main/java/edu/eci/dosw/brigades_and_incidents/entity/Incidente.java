@@ -63,6 +63,10 @@ public class Incidente {
     @Column(name = "observaciones_resolucion", length = 1000)
     private String observacionesResolucion;
 
+    // Resultado con el que el brigadista finalizó la atención: RESUELTO, TRANSFERIDO o NO_RESUELTO.
+    @Column(name = "resultado_atencion", length = 30)
+    private String resultadoAtencion;
+
     // Indica si el incidente fue eliminado logicamente.
     @Column(nullable = false)
     private boolean eliminado = false;
@@ -188,6 +192,14 @@ public class Incidente {
 
     public void setObservacionesResolucion(String observacionesResolucion) {
         this.observacionesResolucion = observacionesResolucion;
+    }
+
+    public String getResultadoAtencion() {
+        return resultadoAtencion;
+    }
+
+    public void setResultadoAtencion(String resultadoAtencion) {
+        this.resultadoAtencion = resultadoAtencion;
     }
 
     public boolean isEliminado() {

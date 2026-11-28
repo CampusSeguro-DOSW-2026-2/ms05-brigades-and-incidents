@@ -79,6 +79,7 @@ class OperacionBrigadistasServiceTest {
     @Mock private BrigadistaClient brigadistaClient;
     @Mock private UbicacionClient ubicacionClient;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private ReclamoIncidentesZonaService reclamoIncidentesZonaService;
 
     @InjectMocks
     private OperacionBrigadistasService service;
@@ -399,6 +400,8 @@ class OperacionBrigadistasServiceTest {
 
         assertEquals(EDIF_A, dto.ubicacionId());
         assertNotNull(dto.idAsignacion());
+        // Los incidentes ya reportados en la zona quedan a cargo del brigadista que se asigna
+        verify(reclamoIncidentesZonaService).reclamarReportados(EVENTO, "B1", EDIF_A);
     }
 
     @Test

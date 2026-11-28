@@ -125,11 +125,12 @@ public class IncidenteService {
                         )
                 );
 
-        // Buscar un brigadista activo y asignado a esta ubicación.
+        // Buscar un brigadista activo y asignado a esta ubicación. La zona se identifica por su id: el tipo no
+        // siempre viaja igual entre MS04 y MS05 (PUNTO_ENCUENTRO frente a ZONA_SEGURA), y la consulta de
+        // incidentes y la autorización de atención ya comparan solo el identificador.
         String responsableId = seleccionarBrigadistaResponsable(
                 eventoId,
-                ubicacion.id(),
-                ubicacion.tipo()
+                ubicacion.id()
         );
 
         // El estado inicial depende de si se encontró un responsable.
@@ -416,14 +417,15 @@ public class IncidenteService {
 
     /**
      * Busca un brigadista con asignación vigente para el evento y ubicación.
+     * La ubicación se compara por su identificador, como lo hacen la consulta de incidentes y la autorización de
+     * atención; el tipo de ubicación no descarta la asignación.
      * Comprueba que esté activo en MS05 y que MS01 confirme su rol y estado.
      *
      * @return identificador externo del brigadista o null si no hay uno válido.
      */
     private String seleccionarBrigadistaResponsable(
             String eventoId,
-            String ubicacionId,
-            String tipoUbicacion
+            String ubicacionId
     ) {
         var asignaciones = asignacionRepository
                 .findByEventoIdAndEstado_Nombre(eventoId, "VIGENTE");
@@ -432,14 +434,6 @@ public class IncidenteService {
 
             if (asignacion.getUbicacionId() == null
                     || !ubicacionId.equals(asignacion.getUbicacionId())) {
-                continue;
-            }
-
-            if (asignacion.getTipoUbicacion() == null
-                    || asignacion.getTipoUbicacion().getNombre() == null
-                    || !tipoUbicacion.equalsIgnoreCase(
-                            asignacion.getTipoUbicacion().getNombre()
-                    )) {
                 continue;
             }
 

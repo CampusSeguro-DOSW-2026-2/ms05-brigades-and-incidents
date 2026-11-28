@@ -18,6 +18,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -329,5 +331,55 @@ class EvidenciaIncidenteServiceTest {
 
         verify(evidenciaStorage, never()).guardar(any());
         verify(evidenciaRepository, never()).save(any());
+    }
+
+    @Test
+    void obtenerArchivoDevuelveLaEvidenciaDelIncidente() throws Exception {
+
+        PermisosPrueba.autenticarComo("COORDINADOR");
+
+        when(usuarioClient.consultarUsuario("usuario-prueba"))
+                .thenReturn(new UsuarioClient.UsuarioExterno(
+                        "usuario-prueba",
+                        "Coordinador de prueba",
+                        List.of("COORDINADOR"),
+                        "ACTIVO"
+                ));
+
+        EvidenciaIncidente evidencia = new EvidenciaIncidente();
+        UUID evidenciaId = UUID.randomUUID();
+
+        evidencia.setId(evidenciaId);
+        evidencia.setIncidente(incidente);
+        evidencia.setTipoContenido("image/png");
+        evidencia.setNombreArchivo("evidencia.png");
+        evidencia.setReferenciaArchivo(
+                "./uploads/evidencias/archivo.png"
+        );
+
+        when(evidenciaRepository.findById(evidenciaId))
+                .thenReturn(Optional.of(evidencia));
+
+        Path archivo = Files.createTempFile("evidencia", ".png");
+
+        when(evidenciaStorage.resolver(
+                "./uploads/evidencias/archivo.png"
+        )).thenReturn(archivo);
+
+        try {
+            EvidenciaIncidenteService.ArchivoEvidencia resultado =
+                    evidenciaService.obtenerArchivo(
+                            EVENTO_ID,
+                            INCIDENTE_ID,
+                            evidenciaId
+                    );
+
+            assertEquals(archivo, resultado.ruta());
+            assertEquals("image/png", resultado.tipoContenido());
+            assertEquals("evidencia.png", resultado.nombreArchivo());
+
+        } finally {
+            Files.deleteIfExists(archivo);
+        }
     }
 }

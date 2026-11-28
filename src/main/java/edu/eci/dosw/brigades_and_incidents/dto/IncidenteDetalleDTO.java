@@ -20,6 +20,7 @@ public record IncidenteDetalleDTO(
         OffsetDateTime fechaPrimeraAtencion,
         OffsetDateTime fechaResolucion,
         String observacionesResolucion,
+        String resultadoAtencion,
         OffsetDateTime fechaCierre,
         List<EvidenciaIncidenteDTO> evidencias
 ) {

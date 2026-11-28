@@ -5,6 +5,7 @@ import edu.eci.dosw.brigades_and_incidents.client.AlertaClient;
 import edu.eci.dosw.brigades_and_incidents.support.PermisosPrueba;
 import edu.eci.dosw.brigades_and_incidents.client.UsuarioClient;
 import edu.eci.dosw.brigades_and_incidents.dto.AsignarResponsableRequest;
+import edu.eci.dosw.brigades_and_incidents.dto.ResolverIncidenteRequest;
 import edu.eci.dosw.brigades_and_incidents.entity.*;
 import edu.eci.dosw.brigades_and_incidents.event.IncidenteAuditPublisher;
 import edu.eci.dosw.brigades_and_incidents.repository.*;
@@ -182,7 +183,8 @@ class GestionAtencionIncidenteServiceTest {
 
         when(asignacion.getBrigadistaId()).thenReturn(responsableId);
         when(asignacion.getUbicacionId()).thenReturn(UBICACION_ID);
-        when(asignacion.getTipoUbicacion()).thenReturn(tipoUbicacion);
+        // La asignación por responsable compara solo el id de la ubicación; el tipo no siempre se usa.
+        lenient().when(asignacion.getTipoUbicacion()).thenReturn(tipoUbicacion);
     }
 
     private void prepararGuardadoHistorial() {
@@ -872,6 +874,68 @@ class GestionAtencionIncidenteServiceTest {
                 );
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
+        verify(incidenteRepository, never()).save(any());
+    }
+
+    @Test
+    void registraElResultadoConElQueSeFinalizaLaAtencion() {
+        Incidente incidente = crearIncidente();
+
+        prepararBrigadistaValido(BRIGADISTA_ID, incidente);
+        PermisosPrueba.autenticarComo("BRIGADISTA");
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+        when(incidenteRepository.save(any(Incidente.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        EstadoIncidente resuelto = mock(EstadoIncidente.class);
+        when(estadoIncidenteRepository.findByNombre("RESUELTO"))
+                .thenReturn(Optional.of(resuelto));
+
+        prepararGuardadoHistorial();
+
+        service.resolverIncidente(
+                EVENTO_ID,
+                INCIDENTE_ID,
+                new ResolverIncidenteRequest(
+                        "Se transfirió a otro brigadista.",
+                        "TRANSFERIDO"
+                ),
+                BRIGADISTA_ID
+        );
+
+        verify(incidente).setResultadoAtencion("TRANSFERIDO");
+        verify(incidente).setEstado(resuelto);
+        verify(incidente).setObservacionesResolucion(
+                "Se transfirió a otro brigadista."
+        );
+    }
+
+    @Test
+    void rechazaUnResultadoDeAtencionDesconocido() {
+        Incidente incidente = crearIncidente();
+
+        prepararBrigadistaValido(BRIGADISTA_ID, incidente);
+        PermisosPrueba.autenticarComo("BRIGADISTA");
+
+        when(incidenteRepository.findById(INCIDENTE_ID))
+                .thenReturn(Optional.of(incidente));
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.resolverIncidente(
+                        EVENTO_ID,
+                        INCIDENTE_ID,
+                        new ResolverIncidenteRequest(
+                                "Observación",
+                                "OTRO"
+                        ),
+                        BRIGADISTA_ID
+                )
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
         verify(incidenteRepository, never()).save(any());
     }
 }

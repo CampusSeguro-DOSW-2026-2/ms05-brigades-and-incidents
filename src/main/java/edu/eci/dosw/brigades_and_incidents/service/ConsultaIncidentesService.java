@@ -455,6 +455,7 @@ public class ConsultaIncidentesService {
                 incidente.getFechaPrimeraAtencion(),
                 incidente.getFechaResolucion(),
                 incidente.getObservacionesResolucion(),
+                incidente.getResultadoAtencion(),
                 incidente.getFechaCierre(),
                 evidencias
         );

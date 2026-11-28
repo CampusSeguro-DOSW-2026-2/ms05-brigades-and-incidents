@@ -34,6 +34,11 @@ public class GestionAtencionIncidenteService {
 
     private static final String ROL_BRIGADISTA = "BRIGADISTA";
 
+    /** Resultados que el brigadista puede registrar al finalizar la atención. */
+    private static final Set<String> RESULTADOS_ATENCION =
+            Set.of("RESUELTO", "TRANSFERIDO", "NO_RESUELTO");
+    private static final String RESULTADO_POR_DEFECTO = "RESUELTO";
+
     private final IncidenteRepository incidenteRepository;
     private final EstadoIncidenteRepository estadoRepository;
     private final BrigadistaRepository brigadistaRepository;
@@ -250,6 +255,8 @@ public class GestionAtencionIncidenteService {
 
         validarEstadoActual(incidente, "EN_ATENCION");
 
+        String resultado = normalizarResultado(request.resultado());
+
         EstadoIncidente estadoAnterior = incidente.getEstado();
         EstadoIncidente nuevoEstado = obtenerEstadoCatalogo("RESUELTO");
 
@@ -258,6 +265,7 @@ public class GestionAtencionIncidenteService {
         incidente.setObservacionesResolucion(
                 request.observaciones().trim()
         );
+        incidente.setResultadoAtencion(resultado);
 
         Incidente actualizado = incidenteRepository.save(incidente);
 
@@ -278,7 +286,7 @@ public class GestionAtencionIncidenteService {
                 eventoId,
                 actorId,
                 "EXITOSO",
-                "El brigadista resolvió el incidente."
+                "El brigadista finalizó el incidente con resultado " + resultado + "."
         );
 
         return construirRespuesta(
@@ -574,6 +582,24 @@ public class GestionAtencionIncidenteService {
         }
 
         return usuario;
+    }
+
+    /** Normaliza el resultado de la atención y rechaza valores fuera del contrato. */
+    private String normalizarResultado(String resultado) {
+        if (resultado == null || resultado.isBlank()) {
+            return RESULTADO_POR_DEFECTO;
+        }
+
+        String valor = resultado.trim().toUpperCase(Locale.ROOT);
+
+        if (!RESULTADOS_ATENCION.contains(valor)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "El resultado de la atención debe ser RESUELTO, TRANSFERIDO o NO_RESUELTO."
+            );
+        }
+
+        return valor;
     }
 
     private Set<String> obtenerRoles(

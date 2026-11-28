@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -146,6 +148,61 @@ public class EvidenciaIncidenteService {
                 .stream()
                 .map(this::convertirRespuesta)
                 .toList();
+    }
+
+    /**
+     * Archivo de una evidencia para verlo o descargarlo. Aplica los mismos permisos de consulta que el listado.
+     */
+    @Transactional(readOnly = true)
+    public ArchivoEvidencia obtenerArchivo(
+            String eventoId,
+            UUID incidenteId,
+            UUID evidenciaId
+    ) {
+        String usuarioId = obtenerUsuarioAutenticado();
+
+        buscarIncidente(eventoId, incidenteId);
+        validarPermisosConsulta(usuarioId);
+
+        EvidenciaIncidente evidencia = evidenciaRepository
+                .findById(evidenciaId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "La evidencia indicada no existe."
+                ));
+
+        if (evidencia.getIncidente() == null
+                || !incidenteId.equals(evidencia.getIncidente().getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "La evidencia no pertenece al incidente indicado."
+            );
+        }
+
+        Path ruta = evidenciaStorage.resolver(
+                evidencia.getReferenciaArchivo()
+        );
+
+        if (!Files.isRegularFile(ruta)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "El archivo de la evidencia no está disponible."
+            );
+        }
+
+        return new ArchivoEvidencia(
+                ruta,
+                evidencia.getTipoContenido(),
+                evidencia.getNombreArchivo()
+        );
+    }
+
+    /** Archivo de una evidencia listo para enviarlo al cliente. */
+    public record ArchivoEvidencia(
+            Path ruta,
+            String tipoContenido,
+            String nombreArchivo
+    ) {
     }
 
     private String obtenerUsuarioAutenticado() {

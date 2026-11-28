@@ -4,6 +4,10 @@ package edu.eci.dosw.brigades_and_incidents.controller;
 import edu.eci.dosw.brigades_and_incidents.dto.EvidenciaIncidenteResponse;
 import edu.eci.dosw.brigades_and_incidents.service.EvidenciaIncidenteService;
 
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -58,5 +62,40 @@ public class EvidenciaIncidenteController {
         return ResponseEntity.ok(
                 evidenciaService.listarEvidencias(eventoId, incidenteId)
         );
+    }
+
+    // Ver o descargar el archivo de una evidencia. Requiere el mismo permiso de consulta que el listado.
+    @PreAuthorize("hasAuthority('ms05:incident:read')")
+    @GetMapping("/{evidenciaId}/archivo")
+    public ResponseEntity<Resource> verArchivo(
+            @PathVariable String eventoId,
+            @PathVariable UUID incidenteId,
+            @PathVariable UUID evidenciaId
+    ) {
+        EvidenciaIncidenteService.ArchivoEvidencia archivo =
+                evidenciaService.obtenerArchivo(
+                        eventoId,
+                        incidenteId,
+                        evidenciaId
+                );
+
+        MediaType tipo;
+
+        try {
+            tipo = MediaType.parseMediaType(archivo.tipoContenido());
+        } catch (RuntimeException exception) {
+            tipo = MediaType.APPLICATION_OCTET_STREAM;
+        }
+
+        return ResponseEntity.ok()
+                .contentType(tipo)
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(archivo.nombreArchivo())
+                                .build()
+                                .toString()
+                )
+                .body(new FileSystemResource(archivo.ruta()));
     }
 }

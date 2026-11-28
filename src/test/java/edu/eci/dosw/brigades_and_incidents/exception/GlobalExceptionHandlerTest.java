@@ -8,6 +8,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -153,5 +155,21 @@ class GlobalExceptionHandlerTest {
                         new RuntimeException("secreto interno"),
                         new MockHttpServletRequest("POST", "/api/v1/x")),
                 500, "Ocurrió un error interno al procesar la solicitud.");
+    }
+
+    @Test
+    void evidenciaDemasiadoGrandeDevuelve413() {
+        verificar(
+                handler.manejarArchivoDemasiadoGrande(
+                        new MaxUploadSizeExceededException(15L * 1024 * 1024)),
+                413, "La evidencia supera el tamaño máximo de 15 MB.");
+    }
+
+    @Test
+    void multipartIlegibleDevuelve400() {
+        verificar(
+                handler.manejarMultipartInvalido(
+                        new MultipartException("EOF")),
+                400, "No se pudo leer el archivo. Intente de nuevo.");
     }
 }

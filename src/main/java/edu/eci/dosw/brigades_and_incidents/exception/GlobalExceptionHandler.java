@@ -16,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -70,6 +72,28 @@ public class GlobalExceptionHandler {
                 : HttpStatus.BAD_REQUEST;
 
         return construirRespuesta(status, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> manejarArchivoDemasiadoGrande(
+            MaxUploadSizeExceededException ex) {
+
+        return construirRespuesta(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "La evidencia supera el tamaño máximo de 15 MB."
+        );
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ErrorResponse> manejarMultipartInvalido(
+            MultipartException ex) {
+
+        logger.warn("No se pudo leer el archivo multipart: {}", ex.getMessage());
+
+        return construirRespuesta(
+                HttpStatus.BAD_REQUEST,
+                "No se pudo leer el archivo. Intente de nuevo."
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

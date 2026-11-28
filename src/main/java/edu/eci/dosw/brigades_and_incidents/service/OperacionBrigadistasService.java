@@ -79,6 +79,7 @@ public class OperacionBrigadistasService {
     private final BrigadistaClient brigadistaClient;
     private final UbicacionClient ubicacionClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReclamoIncidentesZonaService reclamoIncidentesZonaService;
 
     @SuppressWarnings("java:S107")
     public OperacionBrigadistasService(
@@ -91,7 +92,8 @@ public class OperacionBrigadistasService {
             IncidenteRepository incidenteRepository,
             BrigadistaClient brigadistaClient,
             UbicacionClient ubicacionClient,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            ReclamoIncidentesZonaService reclamoIncidentesZonaService
     ) {
         this.configuracionRepository = configuracionRepository;
         this.asignacionRepository = asignacionRepository;
@@ -103,6 +105,7 @@ public class OperacionBrigadistasService {
         this.brigadistaClient = brigadistaClient;
         this.ubicacionClient = ubicacionClient;
         this.eventPublisher = eventPublisher;
+        this.reclamoIncidentesZonaService = reclamoIncidentesZonaService;
     }
 
     // Eventos abiertos
@@ -289,6 +292,9 @@ public class OperacionBrigadistasService {
         Map<String, String> cacheNombres = new HashMap<>();
         ZonaEvento zona = buscarZona(configuracion, ubicacionId);
         AsignacionBrigadista asignacion = asignarEnEvento(configuracion, brigadistaId, zona, brigadistaId, cacheNombres);
+
+        // Un incidente que llegó reportado antes de esta asignación queda a cargo del brigadista que elige la zona.
+        reclamoIncidentesZonaService.reclamarReportados(eventoId, brigadistaId, zona.getZonaId());
 
         return new AutoasignacionEventoDTO(
                 convertirEvento(configuracion, cacheNombres),

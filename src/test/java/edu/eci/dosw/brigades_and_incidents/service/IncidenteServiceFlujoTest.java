@@ -232,6 +232,82 @@ class IncidenteServiceFlujoTest {
         );
     }
 
+    /**
+     * MS04 envía la zona como PUNTO_ENCUENTRO y MS05 la guardó como ZONA_SEGURA. La asignación se resuelve por el
+     * identificador de la ubicación, no por el tipo, para que el incidente no quede reportado sin responsable.
+     */
+    @Test
+    void asignaResponsableAunqueElTipoDeLaZonaDifieraEntreMS04YMS05() {
+
+        PermisosPrueba.autenticarComo("ESTUDIANTE");
+
+        when(usuarioClient.consultarUsuario(USUARIO_ID))
+                .thenReturn(new UsuarioClient.UsuarioExterno(
+                        USUARIO_ID,
+                        "Daniel García",
+                        List.of("ESTUDIANTE"),
+                        "ACTIVO"
+                ));
+
+        TipoUbicacion tipoPuntoEncuentro = mock(TipoUbicacion.class);
+
+        when(tipoUbicacionRepository.findByNombre("PUNTO_ENCUENTRO"))
+                .thenReturn(Optional.of(tipoPuntoEncuentro));
+
+        when(ubicacionClient.consultarUbicacion("ZONA-001", "PUNTO_ENCUENTRO"))
+                .thenReturn(new UbicacionClient.UbicacionExterna(
+                        "ZONA-001",
+                        "Zona segura",
+                        "PUNTO_ENCUENTRO",
+                        true
+                ));
+
+        AsignacionBrigadista asignacion = new AsignacionBrigadista();
+        asignacion.setBrigadistaId(BRIGADISTA_ID);
+        asignacion.setEventoId(EVENTO_ID);
+        asignacion.setUbicacionId("ZONA-001");
+        asignacion.setTipoUbicacion(mock(TipoUbicacion.class));
+        asignacion.setEstado(mock(EstadoAsignacion.class));
+
+        when(asignacionRepository.findByEventoIdAndEstado_Nombre(EVENTO_ID, "VIGENTE"))
+                .thenReturn(List.of(asignacion));
+
+        when(brigadistaRepository.findByUsuarioIdExterno(BRIGADISTA_ID))
+                .thenReturn(Optional.of(new Brigadista(
+                        BRIGADISTA_ID,
+                        new EstadoBrigadista("ACTIVO", "")
+                )));
+
+        when(usuarioClient.consultarUsuario(BRIGADISTA_ID))
+                .thenReturn(new UsuarioClient.UsuarioExterno(
+                        BRIGADISTA_ID,
+                        "Paula Novoa",
+                        List.of("BRIGADISTA"),
+                        "ACTIVO"
+                ));
+
+        when(incidenteMapper.toResponse(any(Incidente.class)))
+                .thenReturn(mock(IncidenteResponse.class));
+
+        CrearIncidenteRequest request = new CrearIncidenteRequest(
+                null,
+                1L,
+                "ZONA-001",
+                "PUNTO_ENCUENTRO",
+                "Necesito ayuda en la zona."
+        );
+
+        incidenteService.registrarIncidente(EVENTO_ID, request, USUARIO_ID);
+
+        Incidente incidenteGuardado = capturarIncidenteGuardado();
+
+        assertSame(estadoAsignado, incidenteGuardado.getEstado());
+        assertEquals(
+                BRIGADISTA_ID,
+                incidenteGuardado.getBrigadistaResponsableId()
+        );
+    }
+
     @Test
     void brigadistaActivoPuedeRegistrarIncidenteParaOtraPersona() {
 
